@@ -43,8 +43,11 @@ export const AuthProvider = ({ children }) => {
           setUser(response.data.data.user);
         }
       } catch (err) {
-        // Token might be invalid, clear it
-        localStorage.removeItem('token');
+        // Only remove token if it's explicitly unauthorized (invalid/expired)
+        if (err.response?.status === 401) {
+          localStorage.removeItem('token');
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }
