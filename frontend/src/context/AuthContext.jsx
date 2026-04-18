@@ -32,12 +32,19 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkUser = async () => {
       try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
         const response = await API.get('/auth/getMe');
         if (response.data.status === 'success') {
           setUser(response.data.data.user);
         }
       } catch (err) {
-        // User not logged in, ignore error
+        // Token might be invalid, clear it
+        localStorage.removeItem('token');
       } finally {
         setLoading(false);
       }
@@ -57,7 +64,13 @@ export const AuthProvider = ({ children }) => {
           return 'password-reset-required';
       }
 
-      const { data } = response.data;
+      const { data, token } = response.data;
+      
+      // Store token in localStorage for cross-domain auth
+      if (token) {
+        localStorage.setItem('token', token);
+      }
+
       setUser(data.user);
       return data.user;
     } catch (err) {
@@ -69,6 +82,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await API.get('/auth/logout');
+      localStorage.removeItem('token');
       setUser(null);
       window.location.href = '/login';
     } catch (err) {
