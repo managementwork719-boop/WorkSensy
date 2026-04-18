@@ -1,0 +1,53 @@
+import Company from '../models/Company.js';
+import User from '../models/User.js';
+
+export const setupNewCompany = async (req, res, next) => {
+  try {
+    const { companyName, industry, adminName, adminEmail, adminPassword } = req.body;
+
+    // 1. Create the Company
+    const company = await Company.create({
+      name: companyName,
+      industry: industry,
+    });
+
+    // 2. Create the first Admin for that company
+    const admin = await User.create({
+      name: adminName,
+      email: adminEmail,
+      password: adminPassword,
+      role: 'admin',
+      companyId: company._id,
+    });
+
+    // 3. Remove password from response
+    admin.password = undefined;
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Company and Admin created successfully',
+      data: {
+        company,
+        admin,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      status: 'fail',
+      message: err.message,
+    });
+  }
+};
+
+export const getAllCompanies = async (req, res, next) => {
+    try {
+      const companies = await Company.find();
+      res.status(200).json({
+        status: 'success',
+        results: companies.length,
+        data: { companies }
+      });
+    } catch (err) {
+      next(err);
+    }
+};

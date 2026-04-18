@@ -1,0 +1,16 @@
+import express from 'express';
+import { updateMyCompany, getMyCompany, updateSmtpSettings, testSmtpSettings } from '../controllers/companyController.js';
+import { protect, restrictTo } from '../middleware/authMiddleware.js';
+
+const router = express.Router();
+
+// All company routes are protected
+router.use(protect);
+
+// Get/Update my company settings (Admins and Super Admins)
+router.get('/my-company', getMyCompany);
+router.patch('/my-company', restrictTo('admin', 'super-admin'), updateMyCompany);
+router.patch('/my-company/smtp', restrictTo('admin', 'super-admin'), updateSmtpSettings);
+router.post('/my-company/test-smtp', restrictTo('admin', 'super-admin'), testSmtpSettings);
+
+export default router;
