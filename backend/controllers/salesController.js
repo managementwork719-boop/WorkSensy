@@ -14,33 +14,81 @@ export const importLeads = async (req, res, next) => {
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(sheet);
+    const rawData = xlsx.utils.sheet_to_json(sheet);
 
-    console.log('Importing leads... Total rows found:', data.length);
-    if (data.length > 0) console.log('Sample Row 1:', data[0]);
+    if (rawData.length === 0) {
+       return res.status(200).json({ status: 'success', message: 'Excel file is empty' });
+    }
 
     const companyId = req.user.companyId;
-    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    // Prepare normalization and check for existing leads in one go
+    const allLeadIds = rawData.map(row => {
+      const keys = Object.keys(row);
+      const idKey = keys.find(k => k.toLowerCase().trim() === 'id');
+      return idKey ? row[idKey] : null;
+    }).filter(id => id);
+
+    // Fetch existing leads to avoid duplicates
+    const existingLeads = await Lead.find({ companyId, leadId: { $in: allLeadIds } }).select('leadId').lean();
+    const existingIdsSet = new Set(existingLeads.map(l => l.leadId));
+
+    // Cache for clients to avoid duplicate hits
+    const clientCache = new Map();
+    const existingClients = await Client.find({ companyId }).lean();
+    existingClients.forEach(c => clientCache.set(c.phone, c._id));
 
     let addedCount = 0;
     let skippedCount = 0;
+    const leadsToCreate = [];
+    const newClientsToCreate = [];
 
-    for (const row of data) {
-      // Create a normalized row (lowercase keys and trimmed values)
+    // Collect new clients to create them in batch
+    const newClientsData = [];
+    const phonesToCreate = new Set();
+
+    // Pass 1: Identify truly new clients from the rawData
+    for (const row of rawData) {
+      const normalizedRow = {};
+      Object.keys(row).forEach(key => {
+        normalizedRow[key.toLowerCase().trim()] = row[key];
+      });
+
+      const getVal = (keys) => {
+        for (const k of keys) {
+           if (normalizedRow[k]) return normalizedRow[k];
+        }
+        return '';
+      };
+
+      const phone = String(getVal(['phone', 'mobile', 'contact']) || '').trim();
+      if (phone && !clientCache.has(phone) && !phonesToCreate.has(phone)) {
+        newClientsData.push({
+          name: getVal(['name', 'full name', 'fullname']) || 'Unknown',
+          phone,
+          email: String(getVal(['email', 'e-mail', 'mail id']) || '').trim().toLowerCase(),
+          companyId
+        });
+        phonesToCreate.add(phone);
+      }
+    }
+
+    // Bulk create new clients
+    if (newClientsData.length > 0) {
+      const createdClients = await Client.insertMany(newClientsData);
+      createdClients.forEach(c => clientCache.set(c.phone, c._id));
+    }
+
+    // Pass 2: Create leads using the updated clientCache
+    for (const row of rawData) {
       const normalizedRow = {};
       Object.keys(row).forEach(key => {
         normalizedRow[key.toLowerCase().trim()] = row[key];
       });
 
       const leadId = normalizedRow['id'];
-      if (!leadId) {
-        console.log('Skipping row - No ID found in row keys:', Object.keys(row));
-        continue;
-      }
-
-      // Check if duplicate
-      const existing = await Lead.findOne({ leadId, companyId });
-      if (existing) {
+      if (!leadId || existingIdsSet.has(String(leadId))) {
         skippedCount++;
         continue;
       }
@@ -52,25 +100,14 @@ export const importLeads = async (req, res, next) => {
         return '';
       };
 
-      const phone = getVal(['phone', 'mobile', 'contact']);
-      let clientId = null;
+      const phone = String(getVal(['phone', 'mobile', 'contact']) || '').trim();
+      const clientId = phone ? clientCache.get(phone) : null;
 
-      if (phone) {
-        let client = await Client.findOne({ phone, companyId });
-        if (!client) {
-          client = await Client.create({
-            name: getVal(['name', 'full name', 'fullname']) || 'Unknown',
-            phone,
-            companyId
-          });
-        }
-        clientId = client._id;
-      }
-
-      await Lead.create({
+      leadsToCreate.push({
         leadId,
         name: getVal(['name', 'full name', 'fullname']) || 'Unknown',
         phone,
+        email: String(getVal(['email', 'e-mail', 'mail id']) || '').trim().toLowerCase(),
         source: getVal(['source', 'origin']),
         campaign: getVal(['campaign', 'ads']),
         requirement: getVal(['requirement', 'needs', 'service']),
@@ -84,15 +121,16 @@ export const importLeads = async (req, res, next) => {
       addedCount++;
     }
 
+    if (leadsToCreate.length > 0) {
+      await Lead.insertMany(leadsToCreate);
+    }
+
     res.status(200).json({
       status: 'success',
-      message: `Successfully processed ${data.length} rows. Added: ${addedCount}, Skipped: ${skippedCount}`,
+      message: `Successfully processed ${rawData.length} rows. Added: ${addedCount}, Skipped: ${skippedCount}`,
     });
   } catch (err) {
-    res.status(400).json({
-      status: 'fail',
-      message: err.message,
-    });
+    next(err);
   }
 };
 
@@ -120,6 +158,8 @@ export const getSalesDashboard = async (req, res, next) => {
       ];
     }
 
+    const isSalesTeam = req.user.role === 'sales-team';
+
     // Aggregate by month (Monthly Breakdown)
     const monthlyData = await Lead.aggregate([
       { $match: matchQuery },
@@ -129,23 +169,44 @@ export const getSalesDashboard = async (req, res, next) => {
           revenue: { 
             $sum: { 
               $cond: [
-                { $and: [{ $eq: ['$status', 'converted'] }, { $eq: ['$convertedBy', req.user.name] }] }, 
+                { $and: [
+                  { $eq: ['$status', 'converted'] }, 
+                  isSalesTeam ? { $eq: ['$convertedBy', req.user.name] } : { $eq: [1, 1] } 
+                ]}, 
                 { $cond: [{ $gt: ['$totalAmount', 0] }, '$totalAmount', '$budget'] }, 
                 0
               ] 
             } 
           },
           received: { 
-            $sum: { $cond: [{ $and: [{ $eq: ['$status', 'converted'] }, { $eq: ['$convertedBy', req.user.name] }] }, '$advanceAmount', 0] } 
+            $sum: { 
+              $cond: [
+                { $and: [
+                  { $eq: ['$status', 'converted'] }, 
+                  isSalesTeam ? { $eq: ['$convertedBy', req.user.name] } : { $eq: [1, 1] }
+                ]}, 
+                '$advanceAmount', 
+                0
+              ] 
+            } 
           },
           leads: { 
-            $sum: { $cond: [{ $eq: ['$convertedBy', req.user.name] }, 1, 0] } 
+            $sum: { $cond: [isSalesTeam ? { $eq: ['$convertedBy', req.user.name] } : { $eq: [1, 1] }, 1, 0] } 
           },
           available: { 
             $sum: { $cond: [{ $eq: ['$status', 'origin'] }, 1, 0] } 
           },
           converted: { 
-            $sum: { $cond: [{ $and: [{ $eq: ['$status', 'converted'] }, { $eq: ['$convertedBy', req.user.name] }] }, 1, 0] } 
+            $sum: { 
+              $cond: [
+                { $and: [
+                  { $eq: ['$status', 'converted'] }, 
+                  isSalesTeam ? { $eq: ['$convertedBy', req.user.name] } : { $eq: [1, 1] }
+                ]}, 
+                1, 
+                0
+              ] 
+            } 
           }
         }
       },
@@ -212,40 +273,114 @@ export const getMyLeads = async (req, res, next) => {
 
 export const getMonthlyOverview = async (req, res, next) => {
   try {
-    const { month } = req.query; // format YYYY-MM
+    const { month, page = 1, limit = 50, search = '', status = 'origin' } = req.query; // format YYYY-MM
     const companyId = req.user.companyId;
 
-    let query = { month, companyId };
+    let query = { month, companyId, status };
 
-    // Sales team sees all Origin leads + leads handled by them
     if (req.user.role === 'sales-team') {
-      query = {
-        month,
-        companyId,
-        $or: [
-          { status: 'origin' },
-          { convertedBy: req.user.name }
-        ]
-      };
+      // Sales team sees all unassigned 'origin' leads or leads assigned to them in other statuses
+      if (status === 'origin') {
+         query = { month, companyId, status: 'origin' };
+      } else {
+         query = { month, companyId, status, convertedBy: req.user.name };
+      }
     }
 
-    const leads = await Lead.find(query).lean();
+    // Add search functionality
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { name: searchRegex },
+            { phone: searchRegex },
+            { leadId: searchRegex },
+            { source: searchRegex }
+          ]
+        }
+      ];
+    }
 
-    const stats = {
-      revenue: leads.reduce((acc, l) => l.status === 'converted' ? acc + (l.totalAmount || l.budget || 0) : acc, 0),
-      received: leads.reduce((acc, l) => l.status === 'converted' ? acc + (l.advanceAmount || 0) : acc, 0),
-      count: leads.length,
-      converted: leads.filter(l => l.status === 'converted').length,
-    };
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Calculate profit as 60% of revenue (as per visual inference)
+    const isSalesTeam = req.user.role === 'sales-team';
+    let statsMatchQuery = { month, companyId };
+
+    if (isSalesTeam) {
+      statsMatchQuery.$or = [
+        { status: 'origin' },
+        { convertedBy: req.user.name }
+      ];
+    }
+
+    // Separate stats calculation (Aggregation) - stats for the WHOLE month (not paginated)
+    const statsPromise = Lead.aggregate([
+      { $match: statsMatchQuery }, 
+      {
+        $group: {
+          _id: null,
+          revenue: { 
+            $sum: { 
+              $cond: [
+                { $eq: ['$status', 'converted'] }, 
+                { $cond: [{ $gt: ['$totalAmount', 0] }, '$totalAmount', '$budget'] }, 
+                0
+              ] 
+            } 
+          },
+          received: { 
+            $sum: { $cond: [{ $eq: ['$status', 'converted'] }, '$advanceAmount', 0] } 
+          },
+          count: { 
+            $sum: { $cond: [isSalesTeam ? { $eq: ['$convertedBy', req.user.name] } : true, 1, 0] } 
+          },
+          originCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'origin'] }, 1, 0] }
+          },
+          converted: { 
+            $sum: { 
+              $cond: [
+                { $and: [
+                  { $eq: ['$status', 'converted'] },
+                  isSalesTeam ? { $eq: ['$convertedBy', req.user.name] } : true
+                ]}, 
+                1, 
+                0
+              ] 
+            } 
+          }
+        }
+      }
+    ]);
+
+    // Paginated leads fetch
+    const leadsPromise = Lead.find(query)
+      .select('-conversationLogs -paymentHistory')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    const countPromise = Lead.countDocuments(query);
+
+    const [statsResult, leads, totalLeads] = await Promise.all([statsPromise, leadsPromise, countPromise]);
+    
+    const stats = statsResult[0] || { revenue: 0, received: 0, count: 0, converted: 0 };
     stats.profit = stats.revenue * 0.6;
 
     res.status(200).json({
       status: 'success',
       data: {
         stats,
-        leads
+        leads,
+        pagination: {
+          totalLeads,
+          totalPages: Math.ceil(totalLeads / limit),
+          currentPage: parseInt(page),
+          limit: parseInt(limit)
+        }
       }
     });
   } catch (err) {
@@ -257,50 +392,62 @@ export const updateLead = async (req, res, next) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+    const companyId = req.user.companyId;
+
+    // Fetch lead once for all checks
+    const lead = await Lead.findOne({ _id: id, companyId });
+    if (!lead) {
+      return res.status(404).json({ status: 'fail', message: 'Lead not found' });
+    }
 
     // Calculate pending amount if total and advance are present
     if (updateData.totalAmount !== undefined || updateData.advanceAmount !== undefined) {
-      const lead = await Lead.findById(id);
       const total = updateData.totalAmount !== undefined ? updateData.totalAmount : lead.totalAmount;
       const advance = updateData.advanceAmount !== undefined ? updateData.advanceAmount : lead.advanceAmount;
       updateData.pendingAmount = total - advance;
     }
 
     // Auto-set next follow-up date to tomorrow if switching to follow-up and date is empty
-    if (updateData.status === 'follow-up') {
-      const lead = await Lead.findById(id);
-      if (!lead.nextFollowUp && !updateData.nextFollowUp) {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(9, 0, 0, 0); // Default to 9:00 AM
-        updateData.nextFollowUp = tomorrow;
-      }
+    if (updateData.status === 'follow-up' && !lead.nextFollowUp && !updateData.nextFollowUp) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0); // Default to 9:00 AM
+      updateData.nextFollowUp = tomorrow;
     }
 
-    const leadBefore = await Lead.findById(id);
-    
     // Check if status is becoming converted
-    if (updateData.status === 'converted' && leadBefore.status !== 'converted' && !leadBefore.clientId && leadBefore.phone) {
-      let client = await Client.findOne({ phone: leadBefore.phone, companyId: req.user.companyId });
+    if (updateData.status === 'converted' && lead.status !== 'converted' && !lead.clientId && lead.phone) {
+      let client = await Client.findOne({ phone: lead.phone, companyId });
       if (!client) {
         client = await Client.create({
-          name: leadBefore.name,
-          phone: leadBefore.phone,
-          companyId: req.user.companyId
+          name: lead.name,
+          phone: lead.phone,
+          companyId
         });
       }
       updateData.clientId = client._id;
     }
 
-    const lead = await Lead.findOneAndUpdate(
-      { _id: id, companyId: req.user.companyId },
-      updateData,
-      { new: true, runValidators: true }
-    );
+    // Logic for 'not-converted' cleanup
+    if (updateData.status === 'not-converted' && lead.clientId) {
+      // Check if the client has any OTHER converted leads (i.e., are they an "Old Client"?)
+      const convertedCount = await Lead.countDocuments({
+        clientId: lead.clientId,
+        status: 'converted',
+        _id: { $ne: lead._id }, // Exclude current lead
+        companyId
+      });
 
-    if (!lead) {
-      return res.status(404).json({ status: 'fail', message: 'Lead not found' });
+      if (convertedCount === 0) {
+        // No previous successful works found, auto-delete the client profile
+        await Client.findOneAndDelete({ _id: lead.clientId, companyId });
+        updateData.clientId = null; // Unlink the lead from the deleted client
+      }
     }
+
+    // Update the lead with new data
+    Object.assign(lead, updateData);
+    await lead.save();
 
     res.status(200).json({
       status: 'success',
@@ -313,39 +460,44 @@ export const updateLead = async (req, res, next) => {
 export const createLead = async (req, res, next) => {
   try {
     const companyId = req.user.companyId;
-    const { leadId, name, phone, source, campaign, requirement, budget, location, month } = req.body;
-    
-    const targetMonth = month || new Date().toISOString().slice(0, 7);
-    const initialStatus = req.body.status || 'origin';
+    const { 
+      leadId, name, phone, email, address, source, campaign, requirement, budget, location, date 
+    } = req.body;
 
-    // Check if duplicate
-    if (leadId) {
-      const existing = await Lead.findOne({ leadId, companyId });
-      if (existing) {
-        return res.status(400).json({ status: 'fail', message: 'Lead ID already exists' });
-      }
+    // Check if leadId already exists for this company
+    const existing = await Lead.findOne({ leadId, companyId });
+    if (existing) {
+      return res.status(400).json({ message: 'Lead ID already exists' });
     }
 
+    const leadDate = date ? new Date(date) : new Date();
+    const month = leadDate.toISOString().slice(0, 7);
+
+    // Sync with Client
     let clientId = null;
-    // ONLY create client if status is converted
-    if (phone && initialStatus === 'converted') {
+    if (phone) {
       let client = await Client.findOne({ phone, companyId });
       if (!client) {
-        client = await Client.create({
-          name,
-          phone,
-          companyId
-        });
+        client = await Client.create({ name, phone, email, companyId });
       }
       clientId = client._id;
     }
 
     const lead = await Lead.create({
-      ...req.body,
       leadId: leadId || `ML-${Math.floor(Math.random() * 900000 + 100000)}`,
+      name,
+      phone,
+      email,
+      address,
+      source,
+      campaign,
+      requirement,
+      budget,
+      location,
+      date: leadDate,
+      month,
       companyId,
-      month: targetMonth,
-      status: initialStatus,
+      status: 'origin',
       clientId
     });
 
@@ -362,36 +514,41 @@ export const getTeamStats = async (req, res, next) => {
   try {
     const companyId = req.user.companyId;
 
-    // Fetch all sales team members
-    const salesTeam = await User.find({ companyId, role: 'sales-team' }).select('name email profilePic');
+    const { year } = req.query;
+    const currentYearFilter = year || new Date().getFullYear().toString();
 
-    // Fetch aggregated stats for these users
-    // 'convertedBy' holds the user's name
-    const teamNames = salesTeam.map(u => u.name);
+    // Aggregation match: Filter by company AND optional year (month prefix)
+    const matchStage = { 
+      companyId, 
+      month: { $regex: `^${currentYearFilter}` }
+    };
 
-    const stats = await Lead.aggregate([
-      { $match: { companyId, convertedBy: { $in: teamNames } } },
-      {
-        $group: {
-          _id: '$convertedBy',
-          totalRevenue: { 
-            $sum: { 
-              $cond: [
-                { $eq: ['$status', 'converted'] }, 
-                { $cond: [{ $gt: ['$totalAmount', 0] }, '$totalAmount', '$budget'] }, 
-                0
-              ] 
-            } 
-          },
-          totalReceived: { 
-            $sum: { $cond: [{ $eq: ['$status', 'converted'] }, '$advanceAmount', 0] } 
-          },
-          totalLeads: { $sum: 1 },
-          convertedCount: { 
-            $sum: { $cond: [{ $eq: ['$status', 'converted'] }, 1, 0] } 
+    const [stats, salesTeam] = await Promise.all([
+      Lead.aggregate([
+        { $match: matchStage },
+        {
+          $group: {
+            _id: '$convertedBy',
+            totalRevenue: { 
+              $sum: { 
+                $cond: [
+                  { $eq: ['$status', 'converted'] }, 
+                  { $cond: [{ $gt: ['$totalAmount', 0] }, '$totalAmount', '$budget'] }, 
+                  0
+                ] 
+              } 
+            },
+            totalReceived: { 
+              $sum: { $cond: [{ $eq: ['$status', 'converted'] }, '$advanceAmount', 0] } 
+            },
+            totalLeads: { $sum: 1 },
+            convertedCount: { 
+              $sum: { $cond: [{ $eq: ['$status', 'converted'] }, 1, 0] } 
+            }
           }
         }
-      }
+      ]),
+      User.find({ companyId, role: 'sales-team' }).select('name email profilePic').lean()
     ]);
 
     // Map stats back to users
@@ -430,32 +587,31 @@ export const getMemberLeads = async (req, res, next) => {
     const companyId = req.user.companyId;
     const { name } = req.params;
 
-    const followUp = await Lead.find({ 
-      companyId, 
-      convertedBy: name,
-      status: 'follow-up' 
-    }).sort({ nextFollowUp: 1 });
-
-    const converted = await Lead.find({ 
-      companyId, 
-      convertedBy: name,
-      status: 'converted' 
-    }).sort({ updatedAt: -1 }).limit(10); // Limit trailing data for UI perf
-
-    // Aggregation for monthly/yearly stats
-    const monthlyStats = await Lead.aggregate([
-      { $match: { companyId, convertedBy: name, status: 'converted' } },
-      {
-        $group: {
-          _id: '$month', // format YYYY-MM
-          revenue: { 
-            $sum: { $cond: [{ $gt: ['$totalAmount', 0] }, '$totalAmount', '$budget'] } 
-          },
-          received: { $sum: '$advanceAmount' },
-          converted: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
+    const [followUp, converted, monthlyStats] = await Promise.all([
+      Lead.find({ 
+        companyId, 
+        convertedBy: name,
+        status: 'follow-up' 
+      }).select('-conversationLogs -paymentHistory').sort({ nextFollowUp: 1 }).lean(),
+      Lead.find({ 
+        companyId, 
+        convertedBy: name,
+        status: 'converted' 
+      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).limit(10).lean(),
+      Lead.aggregate([
+        { $match: { companyId, convertedBy: name, status: 'converted' } },
+        {
+          $group: {
+            _id: '$month', // format YYYY-MM
+            revenue: { 
+              $sum: { $cond: [{ $gt: ['$totalAmount', 0] }, '$totalAmount', '$budget'] } 
+            },
+            received: { $sum: '$advanceAmount' },
+            converted: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ])
     ]);
 
     res.status(200).json({
@@ -560,6 +716,31 @@ export const deleteLead = async (req, res, next) => {
     res.status(204).json({
       status: 'success',
       data: null
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+export const getOverdueProjects = async (req, res, next) => {
+  try {
+    const companyId = req.user.companyId;
+    const now = new Date();
+
+    // Find converted leads where deadline has passed and not completed
+    const overdueLeads = await Lead.find({
+      companyId,
+      status: 'converted',
+      deliveryStatus: { $ne: 'completed' },
+      deadline: { $lt: now }
+    })
+    .sort({ deadline: 1 })
+    .select('name requirement date deadline convertedBy phone leadId')
+    .lean();
+
+    res.status(200).json({
+      status: 'success',
+      results: overdueLeads.length,
+      data: { overdueProjects: overdueLeads }
     });
   } catch (err) {
     next(err);

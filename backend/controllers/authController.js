@@ -44,7 +44,10 @@ export const login = async (req, res, next) => {
     }
 
     // 2) Check if user exists && password is correct
-    const user = await User.findOne({ email }).select('+password').populate('companyId');
+    // Only populate essential company fields
+    const user = await User.findOne({ email })
+      .select('+password')
+      .populate('companyId', 'name themeColor'); 
 
     if (!user || !(await user.comparePassword(password, user.password))) {
       return res.status(401).json({ status: 'fail', message: 'Incorrect email or password' });

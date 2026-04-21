@@ -93,16 +93,31 @@ export const createUser = async (req, res, next) => {
 
 export const getAllUsersByCompany = async (req, res, next) => {
   try {
-    const users = await User.find({ companyId: req.user.companyId });
+    const { page = 1, limit = 8 } = req.query;
+    const companyId = req.user.companyId;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [users, totalUsers] = await Promise.all([
+      User.find({ companyId })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .select('-password')
+        .lean(),
+      User.countDocuments({ companyId })
+    ]);
+
     res.status(200).json({
       status: 'success',
-      results: users.length,
-      data: {
-        users,
+      pagination: {
+        totalUsers,
+        totalPages: Math.ceil(totalUsers / limit),
+        currentPage: parseInt(page)
       },
+      data: { users },
     });
   } catch (err) {
-    res.status(400).json({ status: 'fail', message: err.message });
+    next(err);
   }
 };
 
@@ -158,6 +173,6 @@ export const deleteUser = async (req, res, next) => {
       data: null,
     });
   } catch (err) {
-    res.status(400).json({ status: 'fail', message: err.message });
+    next(err);
   }
 };

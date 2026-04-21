@@ -4,13 +4,37 @@ import mongoose from 'mongoose';
 
 export const getAllClients = async (req, res, next) => {
   try {
+    const { page = 1, limit = 8, search = '' } = req.query;
     const companyId = req.user.companyId;
     
-    // Sort by last activity or name
-    const clients = await Client.find({ companyId }).sort({ lastActivity: -1 });
+    const query = { companyId };
+    if (search) {
+      query.$or = [
+        { name: new RegExp(search, 'i') },
+        { phone: new RegExp(search, 'i') },
+        { email: new RegExp(search, 'i') }
+      ];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch clients with pagination and field projection to exclude large fields if any
+    const [clients, totalClients] = await Promise.all([
+      Client.find(query)
+        .sort({ lastActivity: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Client.countDocuments(query)
+    ]);
 
     res.status(200).json({
       status: 'success',
+      pagination: {
+        totalClients,
+        totalPages: Math.ceil(totalClients / limit),
+        currentPage: parseInt(page)
+      },
       data: { clients }
     });
   } catch (err) {
@@ -23,13 +47,15 @@ export const getClientProfile = async (req, res, next) => {
     const { id } = req.params;
     const companyId = req.user.companyId;
 
-    const client = await Client.findOne({ _id: id, companyId });
+    // Run queries in parallel for speed
+    const [client, leads] = await Promise.all([
+      Client.findOne({ _id: id, companyId }).lean(),
+      Lead.find({ clientId: id, companyId }).sort({ date: -1 }).lean()
+    ]);
+
     if (!client) {
       return res.status(404).json({ status: 'fail', message: 'Client not found' });
     }
-
-    // Fetch all leads associated with this client
-    const leads = await Lead.find({ clientId: id, companyId }).sort({ date: -1 });
 
     res.status(200).json({
       status: 'success',
@@ -70,36 +96,62 @@ export const updateClient = async (req, res, next) => {
 export const syncClients = async (req, res, next) => {
   try {
     const companyId = req.user.companyId;
-    const leads = await Lead.find({ companyId, clientId: { $exists: false } });
     
-    let created = 0;
-    let linked = 0;
+    // Find leads that are not yet linked to a client
+    const leads = await Lead.find({ companyId, clientId: { $exists: false } }).lean();
+    if (leads.length === 0) {
+      return res.status(200).json({ status: 'success', message: 'All leads are already synced.' });
+    }
 
-    for (const lead of leads) {
-      if (!lead.phone) continue;
+    const phoneSet = new Set(leads.map(l => l.phone).filter(p => p));
+    const phones = Array.from(phoneSet);
 
-      let client = await Client.findOne({ phone: lead.phone, companyId });
-      if (!client) {
-        client = await Client.create({
-          name: lead.name,
-          phone: lead.phone,
+    // Fetch all existing clients for these phones in one hit
+    const existingClients = await Client.find({ phone: { $in: phones }, companyId }).lean();
+    const clientCache = new Map(existingClients.map(c => [c.phone, c._id]));
+
+    const newClientsData = [];
+    for (const phone of phones) {
+      if (!clientCache.has(phone)) {
+        // Find one lead to get the name for this phone number
+        const leadForName = leads.find(l => l.phone === phone);
+        newClientsData.push({
+          name: leadForName?.name || 'Unknown',
+          phone,
           companyId
         });
-        created++;
-      } else {
-        linked++;
       }
-
-      lead.clientId = client._id;
-      await lead.save();
-      
-      // Recalculate for each client once
-      await recalculateClientStats(client._id);
     }
+
+    // Bulk create truly new clients
+    if (newClientsData.length > 0) {
+      const createdClients = await Client.insertMany(newClientsData);
+      createdClients.forEach(c => clientCache.set(c.phone, c._id));
+    }
+
+    // Prepare Bulk Update for Leads
+    const bulkLeadOps = leads.map(lead => {
+      const clientId = lead.phone ? clientCache.get(lead.phone) : null;
+      if (!clientId) return null;
+      return {
+        updateOne: {
+          filter: { _id: lead._id },
+          update: { $set: { clientId } }
+        }
+      };
+    }).filter(op => op);
+
+    if (bulkLeadOps.length > 0) {
+      await Lead.bulkWrite(bulkLeadOps);
+    }
+
+    // Finally, recalculate stats for all affected clients in parallel (or just trigger a global sync)
+    const affectedClientIds = Array.from(clientCache.values());
+    await Promise.all(affectedClientIds.map(id => recalculateClientStats(id)));
 
     res.status(200).json({
       status: 'success',
-      message: `Sync complete. Created ${created} clients and linked ${linked} leads.`
+      message: `Sync complete. Processed ${leads.length} leads across ${affectedClientIds.length} clients.`
     });
   } catch (err) {
     next(err);

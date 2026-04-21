@@ -10,11 +10,17 @@ import {
   ShieldAlert,
   TrendingUp,
   UserCheck,
+  UserPlus,
+  ArrowLeft,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
   CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const Sidebar = ({ isCollapsed }) => {
+const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
 
   const menuItems = [
@@ -31,71 +37,85 @@ const Sidebar = ({ isCollapsed }) => {
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.role));
 
   return (
-    <div className={`${isCollapsed ? 'w-20' : 'w-60'} bg-[#0f172a] h-screen flex flex-col text-white fixed left-0 top-0 shadow-xl z-50 transition-all duration-300`}>
+    <div className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white/70 backdrop-blur-xl h-screen flex flex-col text-slate-600 fixed left-0 top-0 border-r border-slate-200/60 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-all duration-300`}>
       {/* Brand */}
-      <div className={`p-5 border-b border-white/5 flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
-        <div className="w-7 h-7 bg-brand-primary rounded-lg flex items-center justify-center font-bold text-sm transition-colors duration-500 shrink-0">
-          W
-        </div>
-        {!isCollapsed && <span className="text-lg font-bold tracking-tight animate-in fade-in duration-300">Work Management</span>}
-      </div>
-        {!isCollapsed && (
-          <div className="px-5 mt-2">
-            {!user?.companyId && user?.role === 'super-admin' && (
-              <p className="text-[9px] text-gray-500 uppercase tracking-[0.2em] font-bold italic">
-                Master Control
-              </p>
-            )}
-            {user?.companyId && (
-              <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold italic truncate">
-                {user.companyId.name}
-              </p>
-            )}
+      <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-violet-600 rounded-xl flex items-center justify-center font-bold text-sm text-white shrink-0 shadow-lg shadow-violet-200">
+            W
           </div>
-        )}
+          {!isCollapsed && <span className="text-lg font-black tracking-tight text-slate-900 animate-in fade-in duration-300">WorkSensy</span>}
+        </div>
+        
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all active:scale-95"
+          title={isCollapsed ? "Expand" : "Collapse"}
+        >
+          {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
+      </div>
+
+      {!isCollapsed && (
+        <div className="px-6 mt-4">
+          {!user?.companyId && user?.role === 'super-admin' && (
+            <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-black">
+              System Admin
+            </p>
+          )}
+          {user?.companyId && (
+            <p className="text-[10px] text-violet-600 uppercase tracking-[0.2em] font-black truncate bg-violet-50 px-2 py-1 rounded-md border border-violet-100 inline-block max-w-full">
+              {user.companyId.name}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1 mt-4 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 p-4 space-y-1.5 mt-4 overflow-y-auto custom-scrollbar">
         {filteredMenu.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl transition-all duration-300 group ${
+                `flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-4'} py-3 rounded-2xl transition-all duration-300 group ${
                   isActive 
-                  ? 'bg-brand-primary text-white shadow-lg shadow-brand-shadow' 
-                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                  ? 'bg-violet-100 text-violet-700 font-bold' 
+                  : 'text-slate-500 hover:bg-violet-50/50 hover:text-violet-600'
                 }`
               }
               title={isCollapsed ? item.name : ''}
             >
-              <item.icon size={20} className="group-hover:scale-110 transition-transform duration-300 shrink-0" />
-              {!isCollapsed && <span className="text-sm font-semibold truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
+              <item.icon size={19} className={`transition-transform duration-300 shrink-0 ${isCollapsed ? '' : 'group-hover:scale-110'}`} />
+              {!isCollapsed && <span className="text-[13px] font-black tracking-wide truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
             </NavLink>
         ))}
       </nav>
 
       {/* User Info & Logout */}
-      <div className={`p-4 border-t border-white/5 bg-[#0a0f1d]/50 ${isCollapsed ? 'flex flex-col items-center gap-4' : ''}`}>
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 mb-4 px-1'}`}>
-          <img 
-            src={user?.profilePic} 
-            alt="profile" 
-            className="w-9 h-9 rounded-xl border-2 border-brand-primary/30 object-cover transition-all duration-500 shadow-sm shrink-0"
-          />
+      <div className={`p-6 border-t border-slate-100 bg-slate-50/30 ${isCollapsed ? 'flex flex-col items-center gap-4' : ''}`}>
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 mb-5 px-1'}`}>
+          <div className="relative">
+            <img 
+              src={user?.profilePic} 
+              alt="profile" 
+              className="w-10 h-10 rounded-2xl border-2 border-white shadow-sm object-cover transition-all duration-500 shrink-0"
+            />
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
+          </div>
           {!isCollapsed && (
             <div className="overflow-hidden animate-in fade-in duration-300">
-              <p className="text-[13px] font-bold truncate leading-tight">{user?.name}</p>
-              <p className="text-[10px] text-slate-500 capitalize font-medium">{user?.role === 'user' ? 'Team Member' : user?.role.replace('-', ' ')}</p>
+              <p className="text-sm font-black text-slate-800 truncate leading-tight uppercase tracking-tight">{user?.name}</p>
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mt-0.5">{user?.role === 'user' ? 'Member' : user?.role.replace('-', ' ')}</p>
             </div>
           )}
         </div>
         <button
           onClick={logout}
-          className={`flex items-center justify-center gap-2 ${isCollapsed ? 'w-10 h-10 p-0 rounded-full' : 'w-full px-4 py-2 rounded-xl'} text-red-400 hover:bg-red-400/5 transition-all duration-300 text-xs font-bold border border-red-400/10 hover:border-red-400/20`}
+          className={`flex items-center justify-center gap-2.5 ${isCollapsed ? 'w-12 h-12 rounded-2xl' : 'w-full px-5 py-3 rounded-2xl'} bg-violet-600 text-white shadow-lg shadow-violet-100 hover:bg-violet-700 hover:shadow-violet-200 transition-all duration-300 text-[11px] font-black uppercase tracking-widest active:scale-95`}
           title="Logout System"
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
           {!isCollapsed && <span>Logout System</span>}
         </button>
       </div>

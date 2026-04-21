@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+  import mongoose from 'mongoose';
 
 const leadSchema = new mongoose.Schema({
   leadId: {
@@ -18,6 +18,8 @@ const leadSchema = new mongoose.Schema({
     default: 0,
   },
   location: String,
+  address: String,
+  email: String,
   priority: {
     type: String,
     enum: ['low', 'normal', 'high'],
@@ -53,7 +55,7 @@ const leadSchema = new mongoose.Schema({
   deadline: Date,
   status: {
     type: String,
-    enum: ['origin', 'follow-up', 'converted'],
+    enum: ['origin', 'follow-up', 'converted', 'not-converted'],
     default: 'origin',
   },
   companyId: {
@@ -94,8 +96,8 @@ const leadSchema = new mongoose.Schema({
 
 // Compound index to prevent duplicate Lead IDs within the same company
 leadSchema.index({ leadId: 1, companyId: 1 }, { unique: true });
-// Indexes for optimizing aggregate queries
-leadSchema.index({ companyId: 1, month: 1 });
+// Compound index for optimizing the main dashboard and monthly overview aggregations (CRITICAL for performance)
+leadSchema.index({ companyId: 1, month: 1, status: 1 });
 leadSchema.index({ companyId: 1, status: 1 });
 leadSchema.index({ companyId: 1, convertedBy: 1 });
 

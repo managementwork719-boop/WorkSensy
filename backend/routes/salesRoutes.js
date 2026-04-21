@@ -11,7 +11,8 @@ import {
   getMemberLeads,
   addLeadNote,
   addLeadPayment,
-  deleteLead
+  deleteLead,
+  getOverdueProjects
 } from '../controllers/salesController.js';
 import { protect, restrictTo } from '../middleware/authMiddleware.js';
 
@@ -24,6 +25,7 @@ const upload = multer({ storage });
 router.use(protect);
 
 router.get('/dashboard', getSalesDashboard);
+router.get('/overdue-projects', restrictTo('admin', 'sales-manager', 'super-admin'), getOverdueProjects);
 router.get('/my-leads', getMyLeads);
 router.get('/member-leads/:name', restrictTo('admin', 'sales-manager', 'super-admin'), getMemberLeads);
 router.get('/monthly-overview', getMonthlyOverview);

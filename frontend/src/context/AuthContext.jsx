@@ -9,6 +9,9 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [team, setTeam] = useState(null); // Cache for team members
+  const [teamLoading, setTeamLoading] = useState(false);
+
   const DEFAULT_THEME = '#ea580c';
 
   // Apply Brand Theme
@@ -82,6 +85,38 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const fetchTeam = async (force = false) => {
+    if (team && !force) return team;
+    setTeamLoading(true);
+    try {
+      const res = await API.get('/users/company-users');
+      const users = res.data.data.users || [];
+      setTeam(users);
+      return users;
+    } catch (err) {
+      console.error('Failed to fetch team members', err);
+      return [];
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  const fetchTeamStats = async (year) => {
+    setTeamLoading(true);
+    try {
+      const res = await API.get(`/sales/team-stats${year ? `?year=${year}` : ''}`);
+      const stats = res.data.data.teamStats || [];
+      // Optionally update team cache if you want performance data globally
+      // setTeam(stats); 
+      return stats;
+    } catch (err) {
+      console.error('Failed to fetch team performance stats', err);
+      return [];
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await API.get('/auth/logout');
@@ -94,7 +129,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, loading, error }}>
+    <AuthContext.Provider value={{ 
+      user, setUser, login, logout, 
+      loading, error, 
+      team, fetchTeam, fetchTeamStats, teamLoading 
+    }}>
       {children}
     </AuthContext.Provider>
   );

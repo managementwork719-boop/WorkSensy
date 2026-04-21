@@ -34,6 +34,10 @@ const Team = () => {
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [smtpConfigured, setSmtpConfigured] = useState(true);
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ totalPages: 1, totalUsers: 0 });
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -48,7 +52,7 @@ const Team = () => {
   useEffect(() => {
     fetchTeam();
     checkSmtp();
-  }, []);
+  }, [page, filter]); // Re-fetch on page or filter change
 
   const checkSmtp = async () => {
     try {
@@ -66,8 +70,12 @@ const Team = () => {
 
   const fetchTeam = async () => {
     try {
-      const res = await API.get('/users/company-users');
+      setLoading(true);
+      const res = await API.get(`/users/company-users?page=${page}&limit=8&role=${filter === 'all' ? '' : filter}`);
       setMembers(res.data.data.users);
+      if (res.data.pagination) {
+        setPagination(res.data.pagination);
+      }
     } catch (err) {
       console.error('Failed to fetch team members');
     } finally {
@@ -155,11 +163,6 @@ const Team = () => {
       }
     }
   };
-
-  const filteredMembers = (filter === 'all' 
-    ? members 
-    : members.filter(m => m.role === filter)
-  ).filter(m => m._id !== user?._id); // Hide current user
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super-admin';
   const isSalesManager = user?.role === 'sales-manager';
@@ -262,7 +265,7 @@ const Team = () => {
         </div>
 
         <div className="divide-y divide-slate-50">
-          {filteredMembers.map(member => (
+          {members.filter(m => m._id !== user?._id).map(member => (
             <div key={member._id} className="group grid grid-cols-1 md:grid-cols-12 gap-4 items-center p-3 hover:bg-slate-50/50 transition-all duration-200">
                {/* Detail Section */}
                <div className="col-span-1 md:col-span-5 flex items-center gap-4 pl-0 md:pl-2">
@@ -325,6 +328,46 @@ const Team = () => {
             </div>
           ))}
         </div>
+
+        {/* Pagination Footer */}
+        {pagination.totalPages > 1 && (
+          <div className="p-4 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Team Size: <span className="text-slate-900">{pagination.totalUsers}</span> Members
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                disabled={page === 1}
+                onClick={() => setPage(page - 1)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest disabled:opacity-50 hover:bg-slate-50 transition-all active:scale-95"
+              >
+                Prev
+              </button>
+              <div className="flex gap-1">
+                {[...Array(pagination.totalPages)].map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPage(i + 1)}
+                    className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all ${
+                      page === i + 1 
+                        ? 'bg-brand-primary text-white shadow-md' 
+                        : 'bg-white border border-slate-100 text-slate-400 hover:bg-slate-50'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <button 
+                disabled={page === pagination.totalPages}
+                onClick={() => setPage(page + 1)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest disabled:opacity-50 hover:bg-slate-50 transition-all active:scale-95"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
        {/* Modal Components */}

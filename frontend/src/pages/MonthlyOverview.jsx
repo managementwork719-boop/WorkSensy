@@ -22,23 +22,30 @@ import {
   AlertTriangle,
   Clock,
   UserPlus,
+  User,
   MapPin,
   X,
   NotebookPen,
-  Wallet
+  Wallet,
+  FileSpreadsheet,
+  FileDown
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import LeadConversationModal from '../components/LeadConversationModal';
 import PaymentHistoryModal from '../components/PaymentHistoryModal';
 import { useAuth } from '../context/AuthContext';
 import { 
-  BarChart, 
-  Bar, 
+  AreaChart, 
+  Area, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import { Skeleton, StatSkeleton, HeaderSkeleton, TableRowSkeleton } from '../components/Skeleton';
+import { useDebounce } from '../hooks/useDebounce';
+
 
 const PriorityBadge = ({ priority }) => {
   const styles = {
@@ -83,12 +90,20 @@ const OverviewCard = ({ title, value, icon: Icon, color = 'bg-brand-primary' }) 
 const MonthlyOverview = () => {
   const { monthId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, fetchTeam, team: cachedTeam } = useAuth();
+  
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('origin');
-  const [teamMembers, setTeamMembers] = useState([]);
+  const [teamMembers, setTeamMembers] = useState(cachedTeam || []);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 500);
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ totalPages: 1, totalLeads: 0 });
+  const [tableLoading, setTableLoading] = useState(false);
+
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [editModalData, setEditModalData] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
@@ -102,6 +117,8 @@ const MonthlyOverview = () => {
     leadId: '',
     name: '',
     phone: '',
+    email: '',
+    address: '',
     source: '',
     campaign: '',
     requirement: '',
@@ -110,29 +127,67 @@ const MonthlyOverview = () => {
   });
 
   useEffect(() => {
-    fetchMonthDetails();
-    fetchTeamMembers();
+    // Initial load: Fetch stats + first page
+    fetchMonthDetails(1);
+    
+    // Use cached team if available, otherwise fetch
+    if (!cachedTeam) {
+      fetchTeam().then(setTeamMembers);
+    }
   }, [monthId]);
 
-  const fetchTeamMembers = async () => {
-    try {
-      const res = await API.get('/users/company-users');
-      setTeamMembers(res.data.data.users || []);
-    } catch (err) {
-      console.error('Failed to fetch team members', err);
+  // Fetch data when page or search changes
+  useEffect(() => {
+    if (!loading) {
+       fetchMonthDetails(page, debouncedSearch, activeTab);
     }
-  };
+  }, [page, debouncedSearch, activeTab]);
 
-  const fetchMonthDetails = async () => {
+  const fetchMonthDetails = async (pageNum = 1, search = '', status = activeTab) => {
+    setTableLoading(true);
     try {
-      const res = await API.get(`/sales/monthly-overview?month=${monthId}`);
+      const res = await API.get(`/sales/monthly-overview?month=${monthId}&page=${pageNum}&search=${search}&status=${status}`);
       setData(res.data.data);
+      setPagination(res.data.data.pagination);
     } catch (err) {
       console.error('Failed to fetch monthly details');
     } finally {
       setLoading(false);
+      setTableLoading(false);
     }
   };
+
+  // Optimistic Status Update
+  const handleOptimisticUpdate = async (id, updates) => {
+    const previousData = { ...data };
+    
+    // 1. Check if the status has changed to something other than the current tab
+    const statusChanged = updates.status && updates.status !== activeTab;
+
+    // 2. Optimistically update local state
+    let updatedLeads;
+    if (statusChanged) {
+        // If status changed, remove it from the current view list
+        updatedLeads = data.leads.filter(l => l._id !== id);
+    } else {
+        // Otherwise just update the specific fields (owner, budget, etc.)
+        updatedLeads = data.leads.map(l => 
+          l._id === id ? { ...l, ...updates } : l
+        );
+    }
+    
+    setData({ ...data, leads: updatedLeads });
+
+    try {
+      // 3. Perform background API call
+      await API.patch(`/sales/lead/${id}`, updates);
+    } catch (err) {
+      // 4. Rollback on failure
+      setData(previousData);
+      alert(err.response?.data?.message || 'Update failed. Reverting changes.');
+    }
+  };
+
 
   const handleUpdateLead = async (id, updateData) => {
     try {
@@ -175,7 +230,7 @@ const MonthlyOverview = () => {
       await API.post('/sales/create-manual', { ...manualForm, month: monthId });
       setShowManual(false);
       setManualForm({
-        leadId: '', name: '', phone: '', source: '', 
+        leadId: '', name: '', phone: '', email: '', address: '', source: '', 
         campaign: '', requirement: '', budget: '', location: ''
       });
       fetchMonthDetails(); // Refresh list to show new lead
@@ -193,8 +248,30 @@ const MonthlyOverview = () => {
   };
 
   if (loading) return (
-    <div className="min-h-[400px] flex items-center justify-center">
-       <div className="w-8 h-8 border-3 border-brand-primary/20 border-t-brand-primary rounded-full animate-spin" />
+    <div className="space-y-6 max-w-[1400px] mx-auto animate-in fade-in duration-500 pb-10">
+      <div className="flex items-center gap-4 mb-2">
+         <Skeleton className="h-10 w-10 circle" />
+         <Skeleton className="h-8 w-48 rounded-lg" />
+      </div>
+
+      <HeaderSkeleton />
+
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+        {[1,2,3,4,5].map(i => <StatSkeleton key={i} />)}
+      </div>
+
+      <div className="bg-white/70 backdrop-blur-xl rounded-2xl border border-slate-200/60 shadow-[0_4px_30px_rgba(0,0,0,0.03)] overflow-hidden h-[500px] p-8">
+        <div className="flex justify-between items-center mb-8">
+           <Skeleton className="h-8 w-64 rounded-xl" />
+           <div className="flex gap-2">
+              <Skeleton className="h-10 w-32 rounded-xl" />
+              <Skeleton className="h-10 w-32 rounded-xl" />
+           </div>
+        </div>
+        <div className="space-y-4">
+          {[1,2,3,4,5,6,7,8].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+        </div>
+      </div>
     </div>
   );
 
@@ -205,17 +282,40 @@ const MonthlyOverview = () => {
   const [year, monthNum] = monthId.split('-');
   const monthName = months[parseInt(monthNum) - 1];
 
-  // Helper for filtered leads
-  const searchFilter = (l) => {
-    if (!searchQuery) return true;
-    const lowerQ = searchQuery.toLowerCase();
-    return (
-      l.name?.toLowerCase().includes(lowerQ) || 
-      l.phone?.includes(lowerQ) || 
-      l.source?.toLowerCase().includes(lowerQ)
-    );
+  // Filter is now handled by the server, but we keep tab filtering logic
+  const filteredLeads = data?.leads || [];
+
+  const exportLeadsToExcel = () => {
+    if (!filteredLeads || filteredLeads.length === 0) {
+      alert('No leads found to export');
+      return;
+    }
+
+    const exportData = filteredLeads.map((lead, index) => ({
+      'S.No': index + 1,
+      'Lead ID': lead.leadId || lead._id,
+      'Name': lead.name,
+      'Phone': lead.phone,
+      'Email': lead.email || 'N/A',
+      'Source': lead.source || 'N/A',
+      'Requirement': lead.requirement || lead.workType || 'N/A',
+      'Budget': lead.budget || lead.totalAmount || 0,
+      'Location': lead.location || 'N/A',
+      'Status': lead.status,
+      'Date': new Date(lead.createdAt).toLocaleDateString()
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    const wscols = [
+      {wch: 8}, {wch: 25}, {wch: 20}, {wch: 15}, {wch: 25}, {wch: 15}, {wch: 30}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 15}
+    ];
+    ws['!cols'] = wscols;
+
+    XLSX.utils.book_append_sheet(wb, ws, "Monthly Leads");
+    XLSX.writeFile(wb, `WorkSensy_Leads_${monthName}_${year}.xlsx`);
   };
-  const filteredLeads = data?.leads?.filter(l => l.status === activeTab && searchFilter(l)) || [];
 
   // Member lists for dropdowns
   const allMembers = teamMembers.map(m => m.name);
@@ -245,13 +345,22 @@ const MonthlyOverview = () => {
             <p className="text-slate-500 text-[11px] font-medium mt-0.5 uppercase tracking-widest">Monthly Lead Performance Analysis</p>
           </div>
         </div>
-        <button 
-          onClick={() => setShowManual(true)}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95"
-        >
-          <Plus size={16} />
-          <span>Add Lead</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={exportLeadsToExcel}
+            className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 flex items-center gap-2 active:scale-95 shadow-sm"
+          >
+            <FileDown size={16} />
+            <span>Export Report</span>
+          </button>
+          <button 
+            onClick={() => setShowManual(true)}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95"
+          >
+            <Plus size={16} />
+            <span>Add Lead</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Row */}
@@ -268,34 +377,140 @@ const MonthlyOverview = () => {
           </>
         )}
       </div>
+ 
+       {/* Weekly Analysis Chart - Zig Zag Style */}
+       <div className="bg-white/70 backdrop-blur-xl p-5 rounded-[24px] border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group">
+          <div className="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-[40px] animate-pulse" />
+          
+          <div className="flex items-center justify-between mb-4 relative z-10">
+             <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-[0_4px_15px_rgba(99,102,241,0.3)]">
+                   <TrendingUp size={14} className="text-white" />
+                </div>
+                <div>
+                   <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Weekly Performance</h3>
+                   <p className="text-xs font-black text-slate-900 tracking-tight">Revenue Pulse</p>
+                </div>
+             </div>
+             <div className="bg-brand-primary/10 px-2 py-0.5 rounded-full border border-brand-primary/20">
+                <span className="text-[9px] font-black text-brand-primary tracking-tight">LIVE PULSE</span>
+             </div>
+          </div>
+          
+          <div className="h-[120px] w-full relative z-10">
+             <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                   <defs>
+                      <linearGradient id="monthGradient" x1="0" y1="0" x2="1" y2="0">
+                         <stop offset="0%" stopColor="#6366f1" />
+                         <stop offset="100%" stopColor="#ec4899" />
+                      </linearGradient>
+                      <linearGradient id="monthFill" x1="0" y1="0" x2="0" y2="1">
+                         <stop offset="0%" stopColor="#6366f1" stopOpacity={0.1}/>
+                         <stop offset="100%" stopColor="#6366f1" stopOpacity={0}/>
+                      </linearGradient>
+                   </defs>
+                    <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="#E2E8F0" opacity={0.6} />
+                    <XAxis 
+                       dataKey="name" 
+                       axisLine={false} 
+                       tickLine={false} 
+                       tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 900 }}
+                       dy={10}
+                    />
+                    <YAxis hide={true} />
+                    <Tooltip 
+                       contentStyle={{ 
+                          borderRadius: '12px', 
+                          border: 'none', 
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                          fontSize: '11px',
+                          fontWeight: '900',
+                          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                          backdropFilter: 'blur(10px)'
+                       }}
+                       itemStyle={{ color: '#1e293b' }}
+                    />
+                    <Area 
+                       type="linear" 
+                       dataKey="revenue" 
+                       stroke="#64748b" 
+                       strokeWidth={2} 
+                       fill="transparent" 
+                       animationDuration={1000} 
+                       dot={(props) => {
+                          const { cx, cy, index } = props;
+                          const currentVal = chartData[index]?.revenue;
+                          const prevVal = index > 0 ? chartData[index - 1]?.revenue : null;
+                          const nextVal = index < chartData.length - 1 ? chartData[index + 1]?.revenue : null;
+                          
+                          let dotColor = '#6366f1'; // Default
+                          
+                          // logic for peak (red) and valley (blue)
+                          if (prevVal !== null && nextVal !== null) {
+                             if (currentVal >= prevVal && currentVal >= nextVal) dotColor = '#ef4444'; // Peak
+                             else if (currentVal <= prevVal && currentVal <= nextVal) dotColor = '#3b82f6'; // Valley
+                          } else if (prevVal === null && nextVal !== null) {
+                             // First point
+                             dotColor = currentVal >= nextVal ? '#ef4444' : '#3b82f6';
+                          } else if (nextVal === null && prevVal !== null) {
+                             // Last point
+                             dotColor = currentVal >= prevVal ? '#ef4444' : '#3b82f6';
+                          }
+
+                          return <circle key={index} cx={cx} cy={cy} r={5} fill={dotColor} stroke="#fff" strokeWidth={2} />;
+                       }}
+                       activeDot={{ r: 7, fill: '#1e293b', stroke: '#fff', strokeWidth: 3 }}
+                    />
+                </AreaChart>
+             </ResponsiveContainer>
+          </div>
+       </div>
 
       {/* Main Content Area */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Lead Table Section */}
-        <div className="lg:col-span-12 bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden min-h-[400px]">
-           {/* Tabs */}
-           <div className="flex gap-2 p-3 bg-slate-50/50 border-b border-slate-100">
-             {['origin', 'follow-up', 'converted'].map(tab => (
-               <button
-                 key={tab}
-                 onClick={() => { setActiveTab(tab); setSelectedLeads([]); }}
-                 className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-                   activeTab === tab 
-                   ? 'bg-brand-primary text-white shadow-md shadow-brand-shadow' 
-                   : 'text-slate-400 hover:text-slate-600 hover:bg-white'
-                 }`}
-               >
-                 {tab.replace('-', ' ')}
-               </button>
-             ))}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+        <div className="lg:col-span-12">
+           {/* Tabs & Search */}
+           <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-3 bg-slate-50/50 border-b border-slate-100">
+                <div className="flex gap-2">
+                  {['origin', 'follow-up', 'converted'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => { setActiveTab(tab); setPage(1); setSelectedLeads([]); }}
+                      className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
+                        activeTab === tab 
+                        ? 'bg-brand-primary text-white shadow-md shadow-brand-shadow' 
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                      }`}
+                    >
+                      {tab.replace('-', ' ')}
+                    </button>
+                  ))}
+                 </div>
+
+                 {/* Server-side Search */}
+                 <div className="relative w-full sm:w-64">
+                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                   <input 
+                     type="text"
+                     placeholder="Search leads..."
+                     value={searchQuery}
+                     onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                     className="w-full pl-9 pr-4 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium focus:ring-2 focus:ring-brand-shadow outline-none transition-all"
+                   />
+                 </div>
+              </div>
+           </div>
+
+           <div className="overflow-x-auto min-h-[400px]">
+                <table className="w-full border-separate border-spacing-y-3 px-1">
                 <thead>
-                  <tr className="bg-slate-800 text-[10px] font-bold uppercase tracking-widest text-white border-b-4  shadow-sm">
+                  <tr className="text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     {activeTab === 'origin' && (
                        <>
-                         <th className="px-5 py-4 ">Lead ID</th>
+                         <th className="px-6 py-4">Lead ID</th>
                          <th className="px-4 py-4">Name</th>
                          <th className="px-4 py-4">Phone</th>
                          <th className="px-4 py-4">Source</th>
@@ -303,16 +518,16 @@ const MonthlyOverview = () => {
                          <th className="px-4 py-4">Budget</th>
                          <th className="px-4 py-4 min-w-[120px]">Handled By</th>
                          <th className="px-4 py-4">Status</th>
-                         <th className="px-4 py-4 text-right">Actions</th>
+                         <th className="px-4 py-4 text-right pr-6">Actions</th>
                        </>
                     )}
                     {activeTab === 'follow-up' && (
                        <>
-                         <th className="px-4 py-4 w-12">S.No</th>
+                         <th className="px-6 py-4">S.No</th>
                          <th className="px-4 py-4">Name</th>
                          <th className="px-4 py-4">Phone</th>
                          <th className="px-4 py-4">Source</th>
-                         <th className="px-4 py-4">Location</th>
+                         <th className="px-4 py-4 text-nowrap">Location</th>
                          <th className="px-4 py-4">Date</th>
                          <th className="px-4 py-4">Priority</th>
                          <th className="px-4 py-4">Work</th>
@@ -321,32 +536,32 @@ const MonthlyOverview = () => {
                          <th className="px-4 py-4 min-w-[120px]">Handled By</th>
                          <th className="px-4 py-4">Amount</th>
                          <th className="px-4 py-4">Remarks</th>
-                         <th className="px-4 py-4 text-right">Actions</th>
+                         <th className="px-4 py-4 text-right pr-6">Actions</th>
                        </>
                     )}
                     {activeTab === 'converted' && (
                        <>
-                         <th className="px-4 py-4 w-12">S.No</th>
+                         <th className="px-6 py-4">S.No</th>
                          <th className="px-4 py-4">Client</th>
                          <th className="px-4 py-4">Phone</th>
                          <th className="px-4 py-4">Work</th>
                          <th className="px-4 py-4">Source</th>
                          <th className="px-4 py-4">Converted</th>
-                         <th className="px-4 py-4">Assigned To</th>
+                         <th className="px-4 py-4 whitespace-nowrap">Assigned To</th>
                          <th className="px-4 py-4">Date</th>
                          <th className="px-4 py-4 text-center">Total </th>
                          <th className="px-4 py-4 text-center">Advance </th>
-                         <th className="px-4 py-4 text-center bg-red-500/10 text-red-200">Pending </th>
-                         <th className="px-4 py-4">Payment</th>
+                         <th className="px-4 py-4 text-center">Pending </th>
+                         <th className="px-4 py-4 whitespace-nowrap">Payment</th>
                          <th className="px-4 py-4">Status</th>
                          <th className="px-4 py-4">Deadline</th>
                          <th className="px-4 py-4">Remarks</th>
-                         <th className="px-4 py-4 text-right">Actions</th>
+                         <th className="px-4 py-4 text-right pr-6">Actions</th>
                        </>
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody>
                   {filteredLeads.map((lead, idx) => {
                     const isSelected = selectedLeads.includes(lead._id);
                     return (
@@ -356,13 +571,30 @@ const MonthlyOverview = () => {
                         if (['SELECT', 'INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName) || e.target.closest('a')) return;
                         toggleLeadSelection(lead._id);
                       }}
-                      className={`group transition-all duration-200 cursor-pointer border-l-4 ${isSelected ? 'bg-indigo-50 border-indigo-500 hover:bg-indigo-100' : 'hover:bg-slate-50 border-transparent'}`}
+                      className={`group transition-all duration-300 cursor-pointer hover:scale-[1.005] relative
+                        ${isSelected ? 'z-10' : ''}`}
                     >
                       {activeTab === 'origin' && (
                         <>
-                          <td className="px-4 py-4 text-[11px] font-bold text-slate-400">{lead.leadId}</td>
-                          <td className="px-4 py-4 text-[13px] font-bold text-slate-900">{lead.name}</td>
-                          <td className="px-4 py-4 text-[12px] text-slate-600 font-medium whitespace-nowrap">
+                          <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                             <div className="flex items-center gap-3">
+                                <span className={`w-2 h-2 rounded-full ${lead.status === 'converted' ? 'bg-emerald-500' : 'bg-brand-primary'} shadow-sm shadow-brand-shadow`}></span>
+                                <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">{lead.leadId}</span>
+                             </div>
+                          </td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[13px] font-bold text-slate-900 group relative`}>
+                              <div className="flex flex-col">
+                                <span>{lead.name}</span>
+                                {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
+                                {lead.address && (
+                                  <span className="text-[9px] text-slate-400 font-normal group-hover:text-brand-primary truncate max-w-[150px]" title={lead.address}>
+                                    {lead.address}
+                                  </span>
+                                )}
+                              </div>
+                           </td>
+
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
                             <div className="flex items-center gap-2">
                               <span>{lead.phone || '--'}</span>
                               {lead.phone && (
@@ -372,13 +604,13 @@ const MonthlyOverview = () => {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{lead.source}</td>
-                          <td className="px-4 py-4 text-[12px] text-slate-500 font-medium truncate max-w-[150px]">{lead.requirement}</td>
-                          <td className="px-4 py-4 text-[12px] font-bold text-slate-900">₹{lead.budget?.toLocaleString()}</td>
-                          <td className="px-4 py-4">
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium truncate max-w-[150px]`}>{lead.requirement}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>₹{lead.budget?.toLocaleString()}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                             <select 
                               value={lead.convertedBy || ''}
-                              onChange={(e) => handleUpdateLead(lead._id, { convertedBy: e.target.value })}
+                              onChange={(e) => handleOptimisticUpdate(lead._id, { convertedBy: e.target.value })}
                               className="bg-transparent border border-transparent hover:border-slate-200 text-[11px] font-bold text-brand-primary rounded focus:ring-0 cursor-pointer p-0.5 w-24 truncate"
                             >
                               <option value="">Sales Owner</option>
@@ -387,7 +619,7 @@ const MonthlyOverview = () => {
                               ))}
                             </select>
                           </td>
-                          <td className="px-4 py-4">
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                             <div className="flex items-center gap-2">
                               <select 
                                 value={lead.status}
@@ -399,13 +631,14 @@ const MonthlyOverview = () => {
                                     tomorrow.setDate(tomorrow.getDate() + 1);
                                     updates.nextFollowUp = tomorrow;
                                   }
-                                  handleUpdateLead(lead._id, updates);
+                                  handleOptimisticUpdate(lead._id, updates);
                                 }}
                                 className="bg-slate-50 border-none text-[10px] font-bold uppercase tracking-widest text-brand-primary rounded-lg focus:ring-0 cursor-pointer p-1"
                               >
                                 <option value="origin">Origin</option>
                                 <option value="follow-up">Follow-up</option>
                                 <option value="converted">Converted</option>
+                                <option value="not-converted">Not Converted</option>
                               </select>
                               <button 
                                 onClick={(e) => { e.stopPropagation(); setSelectedLeadForNote(lead); }}
@@ -421,25 +654,43 @@ const MonthlyOverview = () => {
 
                       {activeTab === 'follow-up' && (
                          <>
-                           <td className="px-4 py-4 text-[11px] font-bold text-slate-400">{idx + 1}</td>
-                           <td className="px-4 py-4 text-[13px] font-bold text-slate-900">{lead.name}</td>
-                           <td className="px-4 py-4 text-[12px] text-slate-600 font-medium whitespace-nowrap">
+                           <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                              <div className="flex flex-col">
+                                <span>{lead.name}</span>
+                                {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
+                                {lead.address && (
+                                  <span className="text-[9px] text-slate-400 font-normal group-hover:text-brand-primary truncate max-w-[150px]" title={lead.address}>
+                                    {lead.address}
+                                  </span>
+                                )}
+                              </div>
+                           </td>
+
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
                              <div className="flex items-center gap-2">
                                <span>{lead.phone || '--'}</span>
-                               {lead.phone && (
-                                 <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-600 transition-colors">
-                                   <MessageSquare size={13} strokeWidth={2.5} />
-                                 </a>
-                               )}
-                             </div>
+                               <div className="flex gap-1.5 translate-y-[1px]">
+                                  {lead.phone && (
+                                    <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-600 transition-all hover:scale-110">
+                                      <MessageSquare size={13} strokeWidth={2.5} />
+                                    </a>
+                                  )}
+                                  {lead.email && (
+                                    <a href={`mailto:${lead.email}`} className="text-brand-primary hover:text-brand-primary/80 transition-all hover:scale-110">
+                                      <Mail size={13} strokeWidth={2.5} />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
                            </td>
-                           <td className="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{lead.source || '-'}</td>
-                           <td className="px-4 py-4 text-[12px] text-slate-600 font-medium">{lead.location || 'City'}</td>
-                           <td className="px-4 py-4 text-[12px] text-slate-600 font-medium">{new Date(lead.date).toLocaleDateString('en-GB')}</td>
-                           <td className="px-4 py-4">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{lead.location || 'City'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                               <select 
                                 value={lead.priority}
-                                onChange={(e) => handleUpdateLead(lead._id, { priority: e.target.value })}
+                                onChange={(e) => handleOptimisticUpdate(lead._id, { priority: e.target.value })}
                                 className={`text-[8px] font-bold  tracking-widest border-none rounded-lg focus:ring-0 p-1 cursor-pointer w-full
                                   ${lead.priority === 'high' ? 'bg-red-100 text-red-600' : lead.priority === 'normal' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'}`}
                               >
@@ -448,19 +699,25 @@ const MonthlyOverview = () => {
                                 <option value="high">High</option>
                               </select>
                            </td>
-                           <td className="px-4 py-4 text-[12px] text-slate-500 font-medium max-w-[120px] truncate">{lead.workType || lead.requirement}</td>
-                           <td className="px-4 py-4 text-[11px] font-bold">
-                              <div className={`${isOverdue(lead.nextFollowUp) ? 'bg-red-100 text-red-700 hover:bg-red-200' : isToday(lead.nextFollowUp) ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'} rounded-lg px-2 py-1 inline-block text-[10px] font-bold relative transition-colors cursor-pointer`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium max-w-[120px] truncate`}>{lead.workType || lead.requirement}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold`}>
+                              <label 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  try { e.currentTarget.querySelector('input').showPicker(); } catch(err) {}
+                                }}
+                                className={`${isOverdue(lead.nextFollowUp) ? 'bg-red-100 text-red-700 hover:bg-red-200' : isToday(lead.nextFollowUp) ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'} rounded-lg px-2 py-1 inline-block text-[10px] font-bold relative transition-colors cursor-pointer`}
+                              >
                                 {lead.nextFollowUp ? new Date(lead.nextFollowUp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
                                 <input 
                                   type="date"
-                                  className="absolute opacity-0 top-0 left-0 w-full h-full cursor-pointer"
+                                  className="absolute opacity-0 top-0 left-0 w-full h-full cursor-pointer z-20"
                                   value={lead.nextFollowUp ? new Date(lead.nextFollowUp).toISOString().split('T')[0] : ''}
-                                  onChange={(e) => handleUpdateLead(lead._id, { nextFollowUp: e.target.value })}
+                                  onChange={(e) => handleOptimisticUpdate(lead._id, { nextFollowUp: e.target.value })}
                                 />
-                              </div>
+                              </label>
                            </td>
-                           <td className="px-4 py-4">
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                              <div className="flex items-center gap-2">
                                <select 
                                  value={lead.status}
@@ -472,14 +729,15 @@ const MonthlyOverview = () => {
                                      tomorrow.setDate(tomorrow.getDate() + 1);
                                      updates.nextFollowUp = tomorrow;
                                    }
-                                   handleUpdateLead(lead._id, updates);
+                                   handleOptimisticUpdate(lead._id, updates);
                                  }}
                                  className={`border border-transparent text-[10px] font-bold uppercase tracking-widest rounded-lg focus:ring-0 cursor-pointer px-2 py-1.5 transition-colors text-center shadow-sm
-                                   ${lead.status === 'converted' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-white text-slate-600 hover:bg-slate-50 shadow-slate-200/50'}`}
+                                   ${lead.status === 'converted' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : lead.status === 'not-converted' ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-white text-slate-600 hover:bg-slate-50 shadow-slate-200/50'}`}
                                >
                                  <option value="origin">Origin</option>
                                  <option value="follow-up">Follow-up</option>
                                  <option value="converted">Converted</option>
+                                 <option value="not-converted">Not Converted</option>
                                </select>
                                <button 
                                  onClick={(e) => { e.stopPropagation(); setSelectedLeadForNote(lead); }}
@@ -490,10 +748,10 @@ const MonthlyOverview = () => {
                                </button>
                              </div>
                            </td>
-                           <td className="px-4 py-4 text-[11px] font-bold text-brand-primary text-left">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-brand-primary text-left`}>
                              <select 
                                value={lead.convertedBy || ''}
-                               onChange={(e) => handleUpdateLead(lead._id, { convertedBy: e.target.value })}
+                               onChange={(e) => handleOptimisticUpdate(lead._id, { convertedBy: e.target.value })}
                                className="bg-transparent border border-transparent hover:border-slate-200 text-[11px] font-bold rounded focus:ring-0 cursor-pointer p-0.5 w-24 truncate"
                              >
                                <option value="">Sales Owner</option>
@@ -502,8 +760,8 @@ const MonthlyOverview = () => {
                                ))}
                              </select>
                            </td>
-                           <td className="px-4 py-4 text-[12px] font-bold text-slate-900">{lead.totalAmount || lead.budget || 0}</td>
-                           <td className="px-4 py-4">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>{lead.totalAmount || lead.budget || 0}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                               <textarea
                                 defaultValue={lead.remarks || ''}
                                 onBlur={(e) => {
@@ -518,25 +776,43 @@ const MonthlyOverview = () => {
 
                       {activeTab === 'converted' && (
                          <>
-                           <td className="px-4 py-4 text-[11px] font-bold text-slate-400">{idx + 1}</td>
-                           <td className="px-4 py-4 text-[13px] font-bold text-slate-900">{lead.name}</td>
-                           <td className="px-4 py-4 text-[12px] text-slate-600 font-medium whitespace-nowrap">
+                           <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                              <div className="flex flex-col">
+                                <span>{lead.name}</span>
+                                {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
+                                {lead.address && (
+                                  <span className="text-[9px] text-slate-400 font-normal group-hover:text-brand-primary truncate max-w-[150px]" title={lead.address}>
+                                    {lead.address}
+                                  </span>
+                                )}
+                              </div>
+                           </td>
+
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
                              <div className="flex items-center gap-2">
                                <span>{lead.phone || '--'}</span>
-                               {lead.phone && (
-                                 <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-600 transition-colors">
-                                   <MessageSquare size={13} strokeWidth={2.5} />
-                                 </a>
-                               )}
-                             </div>
+                               <div className="flex gap-1.5 translate-y-[1px]">
+                                  {lead.phone && (
+                                    <a href={`https://wa.me/91${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-emerald-500 hover:text-emerald-600 transition-all hover:scale-110">
+                                      <MessageSquare size={13} strokeWidth={2.5} />
+                                    </a>
+                                  )}
+                                  {lead.email && (
+                                    <a href={`mailto:${lead.email}`} className="text-brand-primary hover:text-brand-primary/80 transition-all hover:scale-110">
+                                      <Mail size={13} strokeWidth={2.5} />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
                            </td>
-                           <td className="px-4 py-4 text-[12px] text-slate-500 font-medium max-w-[120px] truncate">{lead.workType || lead.requirement || 'Work...'}</td>
-                           <td className="px-4 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">{lead.source || '-'}</td>
-                           <td className="px-4 py-4 text-[11px] font-bold text-slate-600">{lead.convertedBy || 'Sales Staff'}</td>
-                           <td className="px-4 py-4">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium max-w-[120px] truncate`}>{lead.workType || lead.requirement || 'Work...'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-600`}>{lead.convertedBy || 'Sales Staff'}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                              <select 
                                value={lead.assignedTo || ''}
-                               onChange={(e) => handleUpdateLead(lead._id, { assignedTo: e.target.value })}
+                               onChange={(e) => handleOptimisticUpdate(lead._id, { assignedTo: e.target.value })}
                                className="bg-transparent border border-transparent hover:border-slate-200 text-[11px] font-bold text-slate-700 focus:ring-0 p-0.5 w-28 cursor-pointer rounded truncate"
                              >
                                <option value="">Assign To...</option>
@@ -545,8 +821,8 @@ const MonthlyOverview = () => {
                                ))}
                              </select>
                            </td>
-                           <td className="px-4 py-4 text-[12px] text-slate-600 font-medium">{new Date(lead.date).toLocaleDateString('en-GB')}</td>
-                           <td className="px-4 py-4 text-center">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-center`}>
                               <input 
                                 type="number" 
                                 defaultValue={lead.totalAmount || lead.budget || 0}
@@ -554,7 +830,7 @@ const MonthlyOverview = () => {
                                 className="w-16 bg-transparent border border-transparent hover:border-slate-200 text-[12px] font-bold focus:ring-0 p-0 text-center text-slate-900 rounded transition-all"
                               />
                            </td>
-                           <td className="px-4 py-4 text-center">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-center`}>
                                <div className="flex items-center justify-center gap-1.5">
                                  <span className="text-[12px] font-extrabold text-emerald-600">
                                    ₹{(lead.advanceAmount || 0).toLocaleString()}
@@ -568,10 +844,10 @@ const MonthlyOverview = () => {
                                  </button>
                                </div>
                             </td>
-                           <td className="px-4 py-4 bg-red-50 text-[12px] font-bold text-red-600 text-center transition-colors">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} bg-red-50 text-[12px] font-bold text-red-600 text-center transition-colors`}>
                               {(lead.totalAmount || lead.budget || 0) - (lead.advanceAmount || 0)}
                            </td>
-                           <td className="px-4 py-4">
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                               <select 
                                 value={lead.paymentStatus}
                                 onChange={(e) => handleUpdateLead(lead._id, { paymentStatus: e.target.value })}
@@ -583,7 +859,7 @@ const MonthlyOverview = () => {
                                 <option value="received">Received</option>
                               </select>
                            </td>
-                           <td className="px-4 py-4">
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                               <select 
                                 value={lead.deliveryStatus}
                                 onChange={(e) => handleUpdateLead(lead._id, { deliveryStatus: e.target.value })}
@@ -595,18 +871,24 @@ const MonthlyOverview = () => {
                                 <option value="completed">Completed</option>
                               </select>
                            </td>
-                           <td className="px-4 py-4 text-[11px] font-bold text-slate-500">
-                              <div className="relative inline-block whitespace-nowrap">
-                               {lead.deadline ? new Date(lead.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
-                               <input 
-                                 type="date"
-                                 className="absolute opacity-0 top-0 left-0 w-full h-full cursor-pointer"
-                                 value={lead.deadline ? new Date(lead.deadline).toISOString().split('T')[0] : ''}
-                                 onChange={(e) => handleUpdateLead(lead._id, { deadline: e.target.value })}
-                               />
-                              </div>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
+                              <label 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  try { e.currentTarget.querySelector('input').showPicker(); } catch(err) {}
+                                }}
+                                className="relative inline-block whitespace-nowrap bg-slate-100 px-2 py-1 rounded-lg text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                              >
+                                {lead.deadline ? new Date(lead.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
+                                <input 
+                                  type="date"
+                                  className="absolute opacity-0 top-0 left-0 w-full h-full cursor-pointer z-20"
+                                  value={lead.deadline ? new Date(lead.deadline).toISOString().split('T')[0] : ''}
+                                  onChange={(e) => handleUpdateLead(lead._id, { deadline: e.target.value })}
+                                />
+                              </label>
                            </td>
-                           <td className="px-4 py-4 text-[11px] font-bold text-slate-500">
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
                              <input 
                                type="text"
                                defaultValue={lead.remarks || ''}
@@ -620,7 +902,7 @@ const MonthlyOverview = () => {
                          </>
                       )}
 
-                      <td className="px-4 py-4 text-right">
+                      <td className={`px-6 py-5 text-right last:rounded-r-2xl border-y border-r transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
                         <div className="flex items-center justify-end gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
                            <button 
                              onClick={(e) => {
@@ -649,61 +931,60 @@ const MonthlyOverview = () => {
                     </tr>
                    );
                   })}
-                  {filteredLeads.length === 0 && (
+                  {filteredLeads.length === 0 && !tableLoading && (
                     <tr>
                       <td colSpan="10" className="py-20 text-center font-bold text-slate-300 text-sm">No data available for this pipeline stage.</td>
                     </tr>
                   )}
                 </tbody>
-              </table>
+               </table>
+               {tableLoading && (
+                 <div className="space-y-3 mt-3 px-1">
+                    {[1,2,3,4,5].map(i => (
+                      <div key={i} className="flex gap-4 p-5 items-center bg-white rounded-2xl border border-slate-100 shadow-sm animate-pulse">
+                        <div className="flex gap-2 items-center w-1/4">
+                           <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+                           <div className="h-4 w-20 bg-slate-100 rounded-lg"></div>
+                        </div>
+                        <div className="h-4 w-1/4 bg-slate-100 rounded-lg"></div>
+                        <div className="h-4 w-1/4 bg-slate-100 rounded-lg"></div>
+                        <div className="h-4 w-1/4 bg-slate-100 rounded-lg text-right"></div>
+                      </div>
+                    ))}
+                 </div>
+               )}
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex justify-between items-center px-6 py-4 bg-slate-50/50 border-t border-slate-100">
+               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  Showing {filteredLeads.length} of {pagination.totalLeads} leads
+               </span>
+               <div className="flex gap-2">
+                  <button 
+                    disabled={page === 1 || tableLoading}
+                    onClick={() => setPage(prev => prev - 1)}
+                    className="p-2 border border-slate-200 rounded-lg text-slate-400 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <ArrowLeft size={14} />
+                  </button>
+                  <div className="flex items-center gap-1">
+                     <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700">
+                        {page}
+                     </span>
+                     <span className="text-[11px] font-bold text-slate-400">/ {pagination.totalPages}</span>
+                  </div>
+                  <button 
+                    disabled={page === pagination.totalPages || tableLoading}
+                    onClick={() => setPage(prev => prev + 1)}
+                    className="p-2 border border-slate-200 rounded-lg text-slate-400 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed transition-all rotate-180"
+                  >
+                    <ArrowLeft size={14} />
+                  </button>
+               </div>
             </div>
         </div>
 
-        {/* Weekly Chart */}
-        <div className="lg:col-span-12 bg-white p-6 rounded-xl border border-slate-200/60 shadow-sm">
-           <div className="flex justify-between items-center mb-6">
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Weekly Revenue Distribution</h4>
-              <BarChart3 size={16} className="text-brand-primary" />
-           </div>
-           
-           <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                       dataKey="name" 
-                       axisLine={false} 
-                       tickLine={false} 
-                       tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
-                       dy={10}
-                    />
-                    <YAxis 
-                       axisLine={false} 
-                       tickLine={false} 
-                       tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
-                    />
-                    <Tooltip 
-                       cursor={{ fill: '#f8fafc' }}
-                       contentStyle={{ 
-                          borderRadius: '12px', 
-                          border: 'none', 
-                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          zIndex: 50
-                       }}
-                    />
-                    <Bar 
-                       dataKey="revenue" 
-                       fill="var(--primary-base)" 
-                       radius={[6, 6, 0, 0]} 
-                       barSize={40}
-                       className="transition-all duration-300 hover:opacity-80"
-                    />
-                 </BarChart>
-              </ResponsiveContainer>
-           </div>
-        </div>
       </div>
       {/* Manual Entry Modal */}
       {showManual && (
@@ -734,7 +1015,7 @@ const MonthlyOverview = () => {
                    <div className="space-y-1">
                       <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Lead Name</label>
                       <div className="relative">
-                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                          <input 
                            type="text" required value={manualForm.name}
                            onChange={(e) => setManualForm({...manualForm, name: e.target.value})}
@@ -747,6 +1028,18 @@ const MonthlyOverview = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Email Address</label>
+                      <div className="relative">
+                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                         <input 
+                           type="email" value={manualForm.email}
+                           onChange={(e) => setManualForm({...manualForm, email: e.target.value})}
+                           className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
+                           placeholder="john@example.com"
+                         />
+                      </div>
+                   </div>
+                   <div className="space-y-1">
                       <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Contact Phone</label>
                       <div className="relative">
                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -758,6 +1051,9 @@ const MonthlyOverview = () => {
                          />
                       </div>
                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1">
                       <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Traffic Source</label>
                       <div className="relative">
@@ -767,6 +1063,18 @@ const MonthlyOverview = () => {
                            onChange={(e) => setManualForm({...manualForm, source: e.target.value})}
                            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
                            placeholder="Fb Ads, Website..."
+                         />
+                      </div>
+                   </div>
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Physical Location</label>
+                      <div className="relative">
+                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                         <input 
+                           type="text" value={manualForm.location}
+                           onChange={(e) => setManualForm({...manualForm, location: e.target.value})}
+                           className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
+                           placeholder="Delhi, Mumbai..."
                          />
                       </div>
                    </div>
@@ -792,18 +1100,6 @@ const MonthlyOverview = () => {
                            onChange={(e) => setManualForm({...manualForm, budget: e.target.value})}
                            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
                            placeholder="50000"
-                         />
-                      </div>
-                   </div>
-                   <div className="space-y-1">
-                      <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Physical Location</label>
-                      <div className="relative">
-                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                         <input 
-                           type="text" value={manualForm.location}
-                           onChange={(e) => setManualForm({...manualForm, location: e.target.value})}
-                           className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
-                           placeholder="Delhi, Mumbai..."
                          />
                       </div>
                    </div>
@@ -847,11 +1143,14 @@ const MonthlyOverview = () => {
                     </div>
                     <div className="space-y-1">
                        <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Lead Name</label>
-                       <input 
-                         type="text" required value={editModalData.name || ''}
-                         onChange={(e) => setEditModalData({...editModalData, name: e.target.value})}
-                         className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
-                       />
+                       <div className="relative">
+                          <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                          <input 
+                            type="text" required value={editModalData.name || ''}
+                            onChange={(e) => setEditModalData({...editModalData, name: e.target.value})}
+                            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
+                          />
+                       </div>
                     </div>
                  </div>
 
@@ -865,10 +1164,29 @@ const MonthlyOverview = () => {
                        />
                     </div>
                     <div className="space-y-1">
+                       <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Lead Email</label>
+                       <input 
+                         type="email" value={editModalData.email || ''}
+                         onChange={(e) => setEditModalData({...editModalData, email: e.target.value})}
+                         className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
+                       />
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
                        <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Traffic Source</label>
                        <input 
                          type="text" value={editModalData.source || ''}
                          onChange={(e) => setEditModalData({...editModalData, source: e.target.value})}
+                         className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
+                       />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[9px] font-bold uppercase tracking-widest text-slate-500 ml-0.5">Physical Location</label>
+                       <input 
+                         type="text" value={editModalData.location || ''}
+                         onChange={(e) => setEditModalData({...editModalData, location: e.target.value})}
                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-shadow outline-none text-xs font-semibold"
                        />
                     </div>
