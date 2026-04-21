@@ -8,13 +8,15 @@ import {
   MoreVertical, 
   Copy,
   CheckCircle2,
-  X 
+  X,
+  Edit2
 } from 'lucide-react';
 
 const Companies = () => {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
   const [copySuccess, setCopySuccess] = useState(null);
 
   // Form State
@@ -45,15 +47,39 @@ const Companies = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await API.post('/super-admin/setup-company', formData);
-      setShowModal(false);
-      setFormData({ companyName: '', industry: '', adminName: '', adminEmail: '', adminPassword: '' });
+      if (editingCompany) {
+        await API.patch(`/super-admin/update-company/${editingCompany._id}`, {
+          name: formData.companyName,
+          industry: formData.industry
+        });
+      } else {
+        await API.post('/super-admin/setup-company', formData);
+      }
+      handleCloseModal();
       fetchCompanies();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create company');
+      alert(err.response?.data?.message || 'Failed to process request');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEdit = (comp) => {
+    setEditingCompany(comp);
+    setFormData({
+      companyName: comp.name,
+      industry: comp.industry || '',
+      adminName: '---', // Not needed for edit
+      adminEmail: '---', // Not needed for edit
+      adminPassword: '---', // Not needed for edit
+    });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingCompany(null);
+    setFormData({ companyName: '', industry: '', adminName: '', adminEmail: '', adminPassword: '' });
   };
 
   const copyToClipboard = (email, pass) => {
@@ -125,8 +151,12 @@ const Companies = () => {
                      <span className="px-3 py-1 bg-green-100 text-green-600 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
                   </td>
                   <td className="px-6 py-4">
-                    <button className="p-2 hover:bg-gray-200 rounded-lg text-gray-400 transition-colors">
-                        <MoreVertical size={18} />
+                    <button 
+                      onClick={() => handleEdit(comp)}
+                      className="p-2 hover:bg-orange-50 rounded-lg text-slate-400 hover:text-orange-600 transition-all active:scale-95"
+                      title="Edit Company"
+                    >
+                        <Edit2 size={16} />
                     </button>
                   </td>
                 </tr>
@@ -142,11 +172,15 @@ const Companies = () => {
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-300">
             <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-gray-50 to-white">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 text-left">Onboard New Client</h2>
-                <p className="text-gray-500 text-sm">Create a new workspace and admin account.</p>
+                <h2 className="text-2xl font-bold text-gray-900 text-left">
+                  {editingCompany ? 'Update Company Details' : 'Onboard New Client'}
+                </h2>
+                <p className="text-gray-500 text-sm">
+                  {editingCompany ? `Modifying ${editingCompany.name}` : 'Create a new workspace and admin account.'}
+                </p>
               </div>
               <button 
-                onClick={() => setShowModal(false)}
+                onClick={handleCloseModal}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
               >
                 <X size={24} />
@@ -181,49 +215,52 @@ const Companies = () => {
                   />
                 </div>
 
-                {/* Admin User Section */}
-                <div className="md:col-span-2 pt-4">
-                   <h3 className="text-sm font-bold text-orange-600 uppercase tracking-widest mb-4">Initial Admin Account</h3>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Admin Full Name</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={formData.adminName}
-                    onChange={(e) => setFormData({...formData, adminName: e.target.value})}
-                    placeholder="e.g. John Doe"
-                    className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Admin Email Address</label>
-                  <input 
-                    type="email" 
-                    required 
-                    value={formData.adminEmail}
-                    onChange={(e) => setFormData({...formData, adminEmail: e.target.value})}
-                    placeholder="client@email.com"
-                    className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none transition-all"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Set Initial Password</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={formData.adminPassword}
-                    onChange={(e) => setFormData({...formData, adminPassword: e.target.value})}
-                    placeholder="Create a strong password"
-                    className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none transition-all font-mono"
-                  />
-                </div>
+                {!editingCompany && (
+                  <>
+                    <div className="md:col-span-2 pt-4">
+                       <h3 className="text-sm font-bold text-orange-600 uppercase tracking-widest mb-4">Initial Admin Account</h3>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Admin Full Name</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={formData.adminName}
+                        onChange={(e) => setFormData({...formData, adminName: e.target.value})}
+                        placeholder="e.g. John Doe"
+                        className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Admin Email Address</label>
+                      <input 
+                        type="email" 
+                        required 
+                        value={formData.adminEmail}
+                        onChange={(e) => setFormData({...formData, adminEmail: e.target.value})}
+                        placeholder="client@email.com"
+                        className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Set Initial Password</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={formData.adminPassword}
+                        onChange={(e) => setFormData({...formData, adminPassword: e.target.value})}
+                        placeholder="Create a strong password"
+                        className="w-full px-4 py-3 bg-gray-50 text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none transition-all font-mono"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="mt-8 pt-6 border-t border-gray-100 flex gap-4">
                 <button 
                   type="button" 
-                  onClick={() => setShowModal(false)}
+                  onClick={handleCloseModal}
                   className="flex-1 py-4 px-6 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-all"
                 >
                   Cancel
@@ -233,7 +270,7 @@ const Companies = () => {
                   disabled={loading}
                   className="flex-[2] py-4 px-6 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-500 shadow-lg shadow-orange-600/20 transition-all transform active:scale-[0.98]"
                 >
-                  {loading ? 'Creating workspace...' : 'Create & Onboard Client'}
+                  {loading ? (editingCompany ? 'Updating...' : 'Creating...') : (editingCompany ? 'Save Changes' : 'Create & Onboard Client')}
                 </button>
               </div>
             </form>
