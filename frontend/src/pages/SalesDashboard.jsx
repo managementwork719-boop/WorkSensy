@@ -220,7 +220,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
     setSelectedMember(member);
     setMemberLeadsLoading(true);
     try {
-      const res = await API.get(`/sales/member-leads/${member.name}`);
+      const res = await API.get(`/sales/member-leads/${encodeURIComponent(member.name)}`);
       setMemberLeads(res.data.data);
     } catch (err) {
       console.error('Failed to fetch member leads');

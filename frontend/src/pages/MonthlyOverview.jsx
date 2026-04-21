@@ -564,6 +564,9 @@ const MonthlyOverview = () => {
                 <tbody>
                   {filteredLeads.map((lead, idx) => {
                     const isSelected = selectedLeads.includes(lead._id);
+                    const isItemOverdue = (activeTab === 'converted' && isOverdue(lead.deadline) && lead.deliveryStatus !== 'completed') || 
+                                         (activeTab === 'follow-up' && isOverdue(lead.nextFollowUp));
+                    
                     return (
                     <tr 
                       key={lead._id} 
@@ -572,17 +575,17 @@ const MonthlyOverview = () => {
                         toggleLeadSelection(lead._id);
                       }}
                       className={`group transition-all duration-300 cursor-pointer hover:scale-[1.005] relative
-                        ${isSelected ? 'z-10' : ''}`}
+                        ${isSelected ? 'z-10' : ''} ${isItemOverdue ? 'animate-pulse-slow' : ''}`}
                     >
                       {activeTab === 'origin' && (
                         <>
-                          <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                          <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                              <div className="flex items-center gap-3">
                                 <span className={`w-2 h-2 rounded-full ${lead.status === 'converted' ? 'bg-emerald-500' : 'bg-brand-primary'} shadow-sm shadow-brand-shadow`}></span>
                                 <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">{lead.leadId}</span>
                              </div>
                           </td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[13px] font-bold text-slate-900 group relative`}>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[13px] font-bold text-slate-900 group relative`}>
                               <div className="flex flex-col">
                                 <span>{lead.name}</span>
                                 {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
@@ -594,7 +597,7 @@ const MonthlyOverview = () => {
                               </div>
                            </td>
 
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
                             <div className="flex items-center gap-2">
                               <span>{lead.phone || '--'}</span>
                               {lead.phone && (
@@ -604,10 +607,10 @@ const MonthlyOverview = () => {
                               )}
                             </div>
                           </td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium truncate max-w-[150px]`}>{lead.requirement}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>₹{lead.budget?.toLocaleString()}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium truncate max-w-[150px]`}>{lead.requirement}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>₹{lead.budget?.toLocaleString()}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                             <select 
                               value={lead.convertedBy || ''}
                               onChange={(e) => handleOptimisticUpdate(lead._id, { convertedBy: e.target.value })}
@@ -619,7 +622,7 @@ const MonthlyOverview = () => {
                               ))}
                             </select>
                           </td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                             <div className="flex items-center gap-2">
                               <select 
                                 value={lead.status}
@@ -654,8 +657,8 @@ const MonthlyOverview = () => {
 
                       {activeTab === 'follow-up' && (
                          <>
-                           <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                           <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                               <div className="flex flex-col">
                                 <span>{lead.name}</span>
                                 {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
@@ -667,7 +670,7 @@ const MonthlyOverview = () => {
                               </div>
                            </td>
 
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
                              <div className="flex items-center gap-2">
                                <span>{lead.phone || '--'}</span>
                                <div className="flex gap-1.5 translate-y-[1px]">
@@ -684,10 +687,10 @@ const MonthlyOverview = () => {
                                 </div>
                               </div>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{lead.location || 'City'}</td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{lead.location || 'City'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                               <select 
                                 value={lead.priority}
                                 onChange={(e) => handleOptimisticUpdate(lead._id, { priority: e.target.value })}
@@ -699,8 +702,8 @@ const MonthlyOverview = () => {
                                 <option value="high">High</option>
                               </select>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium max-w-[120px] truncate`}>{lead.workType || lead.requirement}</td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium max-w-[120px] truncate`}>{lead.workType || lead.requirement}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold`}>
                               <label 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -717,7 +720,7 @@ const MonthlyOverview = () => {
                                 />
                               </label>
                            </td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                              <div className="flex items-center gap-2">
                                <select 
                                  value={lead.status}
@@ -748,7 +751,7 @@ const MonthlyOverview = () => {
                                </button>
                              </div>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-brand-primary text-left`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-brand-primary text-left`}>
                              <select 
                                value={lead.convertedBy || ''}
                                onChange={(e) => handleOptimisticUpdate(lead._id, { convertedBy: e.target.value })}
@@ -760,8 +763,8 @@ const MonthlyOverview = () => {
                                ))}
                              </select>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>{lead.totalAmount || lead.budget || 0}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>{lead.totalAmount || lead.budget || 0}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                               <textarea
                                 defaultValue={lead.remarks || ''}
                                 onBlur={(e) => {
@@ -776,8 +779,8 @@ const MonthlyOverview = () => {
 
                       {activeTab === 'converted' && (
                          <>
-                           <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                           <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                               <div className="flex flex-col">
                                 <span>{lead.name}</span>
                                 {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
@@ -789,7 +792,7 @@ const MonthlyOverview = () => {
                               </div>
                            </td>
 
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
                              <div className="flex items-center gap-2">
                                <span>{lead.phone || '--'}</span>
                                <div className="flex gap-1.5 translate-y-[1px]">
@@ -806,10 +809,10 @@ const MonthlyOverview = () => {
                                 </div>
                               </div>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium max-w-[120px] truncate`}>{lead.workType || lead.requirement || 'Work...'}</td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-600`}>{lead.convertedBy || 'Sales Staff'}</td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium max-w-[120px] truncate`}>{lead.workType || lead.requirement || 'Work...'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-600`}>{lead.convertedBy || 'Sales Staff'}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                              <select 
                                value={lead.assignedTo || ''}
                                onChange={(e) => handleOptimisticUpdate(lead._id, { assignedTo: e.target.value })}
@@ -821,8 +824,8 @@ const MonthlyOverview = () => {
                                ))}
                              </select>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-center`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-center`}>
                               <input 
                                 type="number" 
                                 defaultValue={lead.totalAmount || lead.budget || 0}
@@ -830,7 +833,7 @@ const MonthlyOverview = () => {
                                 className="w-16 bg-transparent border border-transparent hover:border-slate-200 text-[12px] font-bold focus:ring-0 p-0 text-center text-slate-900 rounded transition-all"
                               />
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-center`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-center`}>
                                <div className="flex items-center justify-center gap-1.5">
                                  <span className="text-[12px] font-extrabold text-emerald-600">
                                    ₹{(lead.advanceAmount || 0).toLocaleString()}
@@ -844,10 +847,10 @@ const MonthlyOverview = () => {
                                  </button>
                                </div>
                             </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} bg-red-50 text-[12px] font-bold text-red-600 text-center transition-colors`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-200/60 shadow-inner' : 'bg-red-50 shadow-sm'} text-[12px] font-bold text-red-600 text-center transition-colors`}>
                               {(lead.totalAmount || lead.budget || 0) - (lead.advanceAmount || 0)}
                            </td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                               <select 
                                 value={lead.paymentStatus}
                                 onChange={(e) => handleUpdateLead(lead._id, { paymentStatus: e.target.value })}
@@ -859,7 +862,7 @@ const MonthlyOverview = () => {
                                 <option value="received">Received</option>
                               </select>
                            </td>
-                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                               <select 
                                 value={lead.deliveryStatus}
                                 onChange={(e) => handleUpdateLead(lead._id, { deliveryStatus: e.target.value })}
@@ -871,14 +874,15 @@ const MonthlyOverview = () => {
                                 <option value="completed">Completed</option>
                               </select>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-rose-50/70 border-rose-100 shadow-[inset_0_0_10px_rgba(244,63,94,0.1)]' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
                               <label 
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   try { e.currentTarget.querySelector('input').showPicker(); } catch(err) {}
                                 }}
-                                className="relative inline-block whitespace-nowrap bg-slate-100 px-2 py-1 rounded-lg text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                                className={`relative inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-1 rounded-lg transition-colors cursor-pointer ${isItemOverdue ? 'bg-red-200 text-red-700 border border-red-300 animate-pulse-fast' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                               >
+                                {isItemOverdue && <AlertTriangle size={10} />}
                                 {lead.deadline ? new Date(lead.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
                                 <input 
                                   type="date"
@@ -888,7 +892,7 @@ const MonthlyOverview = () => {
                                 />
                               </label>
                            </td>
-                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
+                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
                              <input 
                                type="text"
                                defaultValue={lead.remarks || ''}
@@ -902,7 +906,7 @@ const MonthlyOverview = () => {
                          </>
                       )}
 
-                      <td className={`px-6 py-5 text-right last:rounded-r-2xl border-y border-r transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                        <td className={`px-6 py-5 text-right last:rounded-r-2xl border-y border-r transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-rose-50/70 border-rose-100' : 'bg-white border-slate-100'}`}>
                         <div className="flex items-center justify-end gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
                            <button 
                              onClick={(e) => {
@@ -928,8 +932,8 @@ const MonthlyOverview = () => {
                            )}
                         </div>
                       </td>
-                    </tr>
-                   );
+                      </tr>
+                     );
                   })}
                   {filteredLeads.length === 0 && !tableLoading && (
                     <tr>

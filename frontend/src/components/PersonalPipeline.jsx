@@ -110,7 +110,10 @@ const PersonalPipeline = () => {
          </div>
          <div className="bg-white p-3 text-center border-l-px">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Overdue</p>
-            <p className="text-base font-bold text-red-500">{data.followUp.filter(l => isOverdue(l.nextFollowUp)).length}</p>
+            <p className="text-base font-bold text-red-500">
+               {data.followUp.filter(l => isOverdue(l.nextFollowUp)).length + 
+                data.converted.filter(l => isOverdue(l.deadline) && l.deliveryStatus !== 'completed').length}
+            </p>
          </div>
          <div className="bg-white p-3 text-center border-l-px">
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Success</p>
@@ -153,8 +156,15 @@ const PersonalPipeline = () => {
                   </td>
                </tr>
             ) : (
-              currentLeads.map((lead) => (
-                <tr key={lead._id} className={`group hover:bg-slate-50/80 transition-all border-l-4 ${activeTab === 'follow-up' ? 'hover:border-amber-500' : 'hover:border-emerald-500'}`}>
+              currentLeads.map((lead) => {
+                const isItemOverdue = (activeTab === 'converted' && isOverdue(lead.deadline) && lead.deliveryStatus !== 'completed') || 
+                                     (activeTab === 'follow-up' && isOverdue(lead.nextFollowUp));
+                return (
+                <tr 
+                  key={lead._id} 
+                  className={`group hover:bg-slate-50/80 transition-all border-l-4 
+                    ${isItemOverdue ? 'bg-red-100 border-red-500 animate-pulse-slow' : activeTab === 'follow-up' ? 'hover:border-amber-500' : 'hover:border-emerald-500'}`}
+                >
                   <td className="px-6 py-4">
                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest border transition-colors ${
                        activeTab === 'follow-up' 
@@ -185,16 +195,21 @@ const PersonalPipeline = () => {
                      )}
                   </td>
                   <td className="px-6 py-4">
-                     {activeTab === 'follow-up' ? (
-                        <div className={`${isOverdue(lead.nextFollowUp) ? 'text-red-600 bg-red-50' : isToday(lead.nextFollowUp) ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-100'} px-2.5 py-1 rounded-lg inline-block text-[10px] font-bold uppercase tracking-wider border border-transparent group-hover:border-current transition-all`}>
-                           {lead.nextFollowUp ? new Date(lead.nextFollowUp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
-                        </div>
-                     ) : (
-                        <div className="flex flex-col gap-1">
-                           <div className="text-emerald-700 font-bold text-[11px] uppercase tracking-tight">{lead.assignedTo || 'Unassigned'}</div>
-                           <div className="text-[9px] text-slate-400 font-medium">Closed on {new Date(lead.updatedAt).toLocaleDateString()}</div>
-                        </div>
-                     )}
+                      {activeTab === 'follow-up' ? (
+                         <div className={`${isOverdue(lead.nextFollowUp) ? 'text-red-600 bg-red-50' : isToday(lead.nextFollowUp) ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-100'} px-2.5 py-1 rounded-lg inline-block text-[10px] font-bold uppercase tracking-wider border border-transparent group-hover:border-current transition-all`}>
+                            {lead.nextFollowUp ? new Date(lead.nextFollowUp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
+                         </div>
+                      ) : (
+                         <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                               <div className={`${isItemOverdue ? 'text-rose-600 bg-rose-100 animate-pulse' : 'text-emerald-700 bg-emerald-50'} font-bold text-[11px] uppercase tracking-tight px-2 py-0.5 rounded`}>
+                                 {lead.assignedTo || 'Unassigned'}
+                               </div>
+                               {isItemOverdue && <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">Critical</span>}
+                            </div>
+                            <div className="text-[9px] text-slate-400 font-medium">Closed on {new Date(lead.updatedAt).toLocaleDateString()}</div>
+                         </div>
+                      )}
                   </td>
                   <td className="px-6 py-4 text-right">
                      <div className="flex items-center justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
@@ -241,7 +256,8 @@ const PersonalPipeline = () => {
                      </div>
                   </td>
                 </tr>
-              ))
+                )
+              })
             )}
           </tbody>
         </table>
