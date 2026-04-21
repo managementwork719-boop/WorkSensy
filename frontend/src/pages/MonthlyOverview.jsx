@@ -33,6 +33,7 @@ import {
 import * as XLSX from 'xlsx';
 import LeadConversationModal from '../components/LeadConversationModal';
 import PaymentHistoryModal from '../components/PaymentHistoryModal';
+import ClientProfileModal from '../components/ClientProfileModal';
 import { useAuth } from '../context/AuthContext';
 import { 
   AreaChart, 
@@ -109,6 +110,7 @@ const MonthlyOverview = () => {
   const [editLoading, setEditLoading] = useState(false);
   const [selectedLeadForNote, setSelectedLeadForNote] = useState(null);
   const [selectedLeadForPayment, setSelectedLeadForPayment] = useState(null);
+  const [selectedLeadForDetail, setSelectedLeadForDetail] = useState(null);
 
   // Manual Entry State
   const [showManual, setShowManual] = useState(false);
@@ -143,10 +145,13 @@ const MonthlyOverview = () => {
     }
   }, [page, debouncedSearch, activeTab]);
 
-  const fetchMonthDetails = async (pageNum = 1, search = '', status = activeTab) => {
+  const fetchMonthDetails = async (pageNum = 1, searchStr = searchQuery, status = activeTab) => {
     setTableLoading(true);
+    // Clear current leads to prevent ghosting/flickering
+    setData(prev => ({ ...prev, leads: [] }));
+    
     try {
-      const res = await API.get(`/sales/monthly-overview?month=${monthId}&page=${pageNum}&search=${search}&status=${status}`);
+      const res = await API.get(`/sales/monthly-overview?month=${monthId}&page=${pageNum}&search=${searchStr}&status=${status}`);
       setData(res.data.data);
       setPagination(res.data.data.pagination);
     } catch (err) {
@@ -562,7 +567,7 @@ const MonthlyOverview = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredLeads.map((lead, idx) => {
+                  {!tableLoading && filteredLeads.map((lead, idx) => {
                     const isSelected = selectedLeads.includes(lead._id);
                     const isItemOverdue = (activeTab === 'converted' && isOverdue(lead.deadline) && lead.deliveryStatus !== 'completed') || 
                                          (activeTab === 'follow-up' && isOverdue(lead.nextFollowUp));
@@ -586,7 +591,10 @@ const MonthlyOverview = () => {
                              </div>
                           </td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[13px] font-bold text-slate-900 group relative`}>
-                              <div className="flex flex-col">
+                              <div 
+                                className="flex flex-col cursor-pointer hover:text-brand-primary transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setSelectedLeadForDetail(lead); }}
+                              >
                                 <span>{lead.name}</span>
                                 {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
                                 {lead.address && (
@@ -659,7 +667,10 @@ const MonthlyOverview = () => {
                          <>
                            <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
-                              <div className="flex flex-col">
+                              <div 
+                                className="flex flex-col cursor-pointer hover:text-brand-primary transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setSelectedLeadForDetail(lead); }}
+                              >
                                 <span>{lead.name}</span>
                                 {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
                                 {lead.address && (
@@ -781,7 +792,10 @@ const MonthlyOverview = () => {
                          <>
                            <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-400`}>{idx + 1}</td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
-                              <div className="flex flex-col">
+                              <div 
+                                className="flex flex-col cursor-pointer hover:text-brand-primary transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setSelectedLeadForDetail(lead); }}
+                              >
                                 <span>{lead.name}</span>
                                 {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
                                 {lead.address && (
@@ -1251,6 +1265,13 @@ const MonthlyOverview = () => {
           lead={selectedLeadForPayment} 
           onClose={() => setSelectedLeadForPayment(null)} 
           onPaymentAdded={fetchMonthDetails}
+        />
+      )}
+
+      {selectedLeadForDetail && (
+        <ClientProfileModal 
+          clientId={selectedLeadForDetail.clientId} 
+          onClose={() => setSelectedLeadForDetail(null)} 
         />
       )}
     </div>

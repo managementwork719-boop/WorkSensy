@@ -37,7 +37,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.role));
 
   return (
-    <div className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white/70 backdrop-blur-xl h-screen flex flex-col text-slate-600 fixed left-0 top-0 border-r border-slate-200/60 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-all duration-300`}>
+    <div className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white/70 backdrop-blur-xl h-screen flex flex-col text-slate-600 fixed left-0 top-0 border-r border-slate-200/60 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-40 transition-all duration-300`}>
       {/* Brand */}
       <div className="p-6 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-3">

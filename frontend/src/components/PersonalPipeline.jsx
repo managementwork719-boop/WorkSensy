@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import LeadConversationModal from './LeadConversationModal';
 import PaymentHistoryModal from './PaymentHistoryModal';
+import ClientProfileModal from './ClientProfileModal';
 
 const isToday = (dateString) => {
   if (!dateString) return false;
@@ -36,6 +37,7 @@ const PersonalPipeline = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLeadForNote, setSelectedLeadForNote] = useState(null);
   const [selectedLeadForPayment, setSelectedLeadForPayment] = useState(null);
+  const [selectedLeadForDetail, setSelectedLeadForDetail] = useState(null);
 
   useEffect(() => {
     fetchMyLeads();
@@ -175,18 +177,13 @@ const PersonalPipeline = () => {
                      </span>
                   </td>
                   <td className="px-6 py-4">
-                     <div className="text-[13px] font-bold text-slate-900 leading-tight">{lead.name}</div>
-                     <div className="flex flex-col gap-0.5 mt-1">
-                        <div className="flex items-center gap-1.5">
-                           <Phone size={10} className="text-slate-400" />
-                           <span className="text-[10px] font-bold text-slate-600 tracking-tight">{lead.phone}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{lead.location || 'Local'}</span>
-                           <span className="w-1 h-1 bg-slate-200 rounded-full" />
-                           <span className="text-[9px] font-bold text-slate-400 italic">#{lead.source || 'Direct'}</span>
-                        </div>
-                     </div>
+                    <div 
+                      className="flex flex-col cursor-pointer group/name"
+                      onClick={() => setSelectedLeadForDetail(lead)}
+                    >
+                      <span className="text-xs font-bold text-slate-900 group-hover/name:text-brand-primary transition-colors">{lead.name}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">{lead.email || 'No Email'}</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                      <div className="text-[11px] text-slate-600 font-bold max-w-[180px] truncate">{lead.requirement || lead.workType || '-'}</div>
@@ -271,11 +268,18 @@ const PersonalPipeline = () => {
       )}
 
       {selectedLeadForPayment && (
-         <PaymentHistoryModal 
-           lead={selectedLeadForPayment} 
-           onClose={() => setSelectedLeadForPayment(null)} 
-           onPaymentAdded={fetchMyLeads}
-         />
+        <PaymentHistoryModal 
+          lead={selectedLeadForPayment} 
+          onClose={() => setSelectedLeadForPayment(null)} 
+          onPaymentAdded={fetchMyLeads}
+        />
+      )}
+
+      {selectedLeadForDetail && (
+        <ClientProfileModal 
+          clientId={selectedLeadForDetail.clientId} 
+          onClose={() => setSelectedLeadForDetail(null)} 
+        />
       )}
     </div>
   );

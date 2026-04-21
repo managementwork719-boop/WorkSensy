@@ -97,9 +97,9 @@ const leadSchema = new mongoose.Schema({
 // Compound index to prevent duplicate Lead IDs within the same company
 leadSchema.index({ leadId: 1, companyId: 1 }, { unique: true });
 // Compound index for optimizing the main dashboard and monthly overview aggregations (CRITICAL for performance)
-leadSchema.index({ companyId: 1, month: 1, status: 1 });
-leadSchema.index({ companyId: 1, status: 1 });
-leadSchema.index({ companyId: 1, convertedBy: 1 });
+leadSchema.index({ companyId: 1, month: 1, status: 1, createdAt: -1 });
+leadSchema.index({ companyId: 1, status: 1, createdAt: -1 });
+leadSchema.index({ companyId: 1, month: 1, convertedBy: 1, createdAt: -1 });
 
 const Lead = mongoose.model('Lead', leadSchema);
 

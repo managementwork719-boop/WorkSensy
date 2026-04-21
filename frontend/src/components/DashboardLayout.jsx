@@ -87,7 +87,7 @@ const DashboardLayout = ({ children }) => {
         </div>
 
         {/* Dynamic Page Content */}
-        <main className="p-8 relative z-10 flex-1">
+        <main className="p-8 relative flex-1">
           <div className="max-w-7xl mx-auto h-full">
             {children}
           </div>
