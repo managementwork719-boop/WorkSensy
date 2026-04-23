@@ -26,14 +26,14 @@ const LeadConversationModal = ({ lead, onClose, onNoteAdded }) => {
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in duration-200 flex flex-col max-h-[80vh]">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl animate-in zoom-in duration-200 flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-indigo-50/30 rounded-t-2xl">
           <div className="flex items-center gap-2 text-indigo-600">
             <NotebookPen size={18} />
             <h2 className="text-sm font-bold text-slate-900">Conversation Notepad: {lead.name}</h2>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-lg text-slate-400 transition-all"><X size={16}/></button>
+          <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-xl text-slate-400 transition-all"><X size={16}/></button>
         </div>
 
         {/* Notes list */}
@@ -45,7 +45,7 @@ const LeadConversationModal = ({ lead, onClose, onNoteAdded }) => {
             </div>
           ) : (
             [...logs].reverse().map((log, i) => (
-              <div key={i} className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 animate-in slide-in-from-bottom-2 duration-300">
+              <div key={i} className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 animate-in slide-in-from-bottom-2 duration-300">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-1.5">
                     <UserCircle size={14} className="text-indigo-400" />
@@ -69,7 +69,7 @@ const LeadConversationModal = ({ lead, onClose, onNoteAdded }) => {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Record your conversation here..."
-              className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-xs font-semibold resize-none h-20"
+              className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 outline-none text-xs font-semibold resize-none h-20"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -80,7 +80,7 @@ const LeadConversationModal = ({ lead, onClose, onNoteAdded }) => {
             <button 
               type="submit"
               disabled={loading || !note.trim()}
-              className="absolute right-2 bottom-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-100 transition-all disabled:opacity-50 disabled:translate-y-0 active:scale-95"
+              className="absolute right-2 bottom-2 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-100 transition-all disabled:opacity-50 disabled:translate-y-0 active:scale-95"
             >
               <Send size={16} />
             </button>

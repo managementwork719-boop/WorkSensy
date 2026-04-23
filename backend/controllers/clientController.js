@@ -1,6 +1,7 @@
 import Client from '../models/Client.js';
 import Lead from '../models/Lead.js';
 import mongoose from 'mongoose';
+import { createActivityLog } from '../utils/logger.js';
 
 export const getAllClients = async (req, res, next) => {
   try {
@@ -87,6 +88,12 @@ export const updateClient = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { client }
+    });
+
+    createActivityLog(req, {
+      action: 'Update Client',
+      module: 'Clients',
+      description: `Updated profile for client: ${client.name}`
     });
   } catch (err) {
     next(err);
@@ -204,6 +211,12 @@ export const deleteClient = async (req, res, next) => {
     res.status(204).json({
       status: 'success',
       data: null
+    });
+
+    createActivityLog(req, {
+      action: 'Delete Client',
+      module: 'Clients',
+      description: `Deleted client record: ${client.name}`
     });
   } catch (err) {
     next(err);

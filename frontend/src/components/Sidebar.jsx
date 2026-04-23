@@ -16,7 +16,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  CreditCard
+  CreditCard,
+  FileText,
+  FileSignature,
+  History
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,14 +27,17 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['super-admin', 'admin', 'sales-manager', 'sales-team', 'project-manager', 'project-team'] },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['super-admin', 'admin', 'sales-manager', 'sales-team', 'accounts-manager', 'accounts-team', 'project-manager', 'project-team'] },
     { name: 'Leads', icon: TrendingUp, path: '/leads', roles: ['super-admin', 'admin', 'sales-manager', 'sales-team'] },
     { name: 'Projects', icon: Briefcase, path: '/projects', roles: ['super-admin', 'admin', 'project-manager', 'project-team'] },
+    { name: 'Activity Log', icon: History, path: '/activity-logs', roles: ['super-admin', 'admin', 'sales-manager', 'sales-team', 'accounts-manager', 'accounts-team', 'project-manager', 'project-team'] },
     { name: 'Team', icon: Users, path: '/team', roles: ['super-admin', 'admin', 'sales-manager', 'project-manager'] },
     { name: 'Clients', icon: UserCheck, path: '/clients', roles: ['super-admin', 'admin', 'sales-manager', 'sales-team', 'project-manager'] },
+    { name: 'Invoices', icon: FileText, path: '/invoices', roles: ['super-admin', 'admin', 'accounts-manager', 'accounts-team'] },
+    { name: 'Quotations', icon: FileSignature, path: '/quotations', roles: ['super-admin', 'admin', 'accounts-manager', 'accounts-team'] },
     { name: 'Billing', icon: CreditCard, path: '/billing', roles: ['super-admin', 'admin', 'project-manager'] },
     { name: 'Companies', icon: ShieldAlert, path: '/companies', roles: ['super-admin'] },
-    { name: 'Settings', icon: Settings, path: '/settings', roles: ['super-admin', 'admin', 'sales-manager', 'sales-team', 'project-manager', 'project-team'] },
+    { name: 'Settings', icon: Settings, path: '/settings', roles: ['super-admin', 'admin', 'sales-manager', 'sales-team', 'accounts-manager', 'accounts-team', 'project-manager', 'project-team'] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.role));

@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Company from '../models/Company.js';
 import jwt from 'jsonwebtoken';
+import { createActivityLog } from '../utils/logger.js';
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -64,6 +65,14 @@ export const login = async (req, res, next) => {
 
     // 4) If everything ok, send token to client
     sendToken(user, 200, res);
+
+    // 5) Log activity
+    req.user = user; // Set user to req for logger
+    createActivityLog(req, {
+      action: 'Login',
+      module: 'Auth',
+      description: `User logged in successfully`
+    });
   } catch (err) {
     next(err);
   }
@@ -88,6 +97,14 @@ export const setupPassword = async (req, res, next) => {
     user.mustChangePassword = false;
     await user.save();
 
+    // Log activity
+    req.user = user;
+    createActivityLog(req, {
+      action: 'Setup Password',
+      module: 'Auth',
+      description: `User completed initial password setup`
+    });
+
     res.status(200).json({
       status: 'success',
       message: 'Password established successfully. You can now login.'
@@ -105,6 +122,16 @@ export const logout = (req, res) => {
     sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
   };
   res.cookie('jwt', 'loggedout', cookieOptions);
+  
+  // Log activity before finishing
+  if (req.user) {
+    createActivityLog(req, {
+      action: 'Logout',
+      module: 'Auth',
+      description: `User logged out`
+    });
+  }
+
   res.status(200).json({ status: 'success' });
 };
 

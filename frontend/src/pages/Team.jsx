@@ -231,7 +231,7 @@ const Team = () => {
       {/* Filters & Search */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white/40 backdrop-blur-sm p-2 rounded-xl border border-slate-200/60 shadow-sm">
         <div className="flex items-center gap-1 p-1 bg-gray-100/50 rounded-xl w-full sm:w-auto overflow-x-auto no-scrollbar">
-           {['all', 'admin', 'sales-manager', 'sales-team', 'project-manager', 'project-team'].map((role) => (
+           {['all', 'admin', 'sales-manager', 'sales-team', 'accounts-manager', 'accounts-team', 'project-manager', 'project-team'].map((role) => (
              <button
                key={role}
                onClick={() => setFilter(role)}
@@ -447,6 +447,8 @@ const Team = () => {
                             {formData.role === 'admin' ? 'Admin' : 
                              formData.role === 'sales-manager' ? 'Sales Head' :
                              formData.role === 'sales-team' ? 'Sales Team' :
+                             formData.role === 'accounts-manager' ? 'Accounts Head' :
+                             formData.role === 'accounts-team' ? 'Accounts Team' :
                              formData.role === 'project-manager' ? 'PM' : 'Project Team'}
                           </span>
                           <ChevronDown size={12} className={`text-slate-400 transition-transform duration-300 ${showRoleDropdown ? 'rotate-180' : ''}`} />
@@ -457,6 +459,8 @@ const Team = () => {
                              {[
                                { id: 'sales-manager', label: 'Sales Manager' },
                                { id: 'sales-team', label: 'Sales Team' },
+                               { id: 'accounts-manager', label: 'Accounts Manager' },
+                               { id: 'accounts-team', label: 'Accounts Team' },
                                { id: 'project-manager', label: 'Project Manager' },
                                { id: 'project-team', label: 'Project Team' }
                              ].map((opt) => (

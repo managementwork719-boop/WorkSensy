@@ -35,6 +35,8 @@ import LeadConversationModal from '../components/LeadConversationModal';
 import PaymentHistoryModal from '../components/PaymentHistoryModal';
 import ClientProfileModal from '../components/ClientProfileModal';
 import { useAuth } from '../context/AuthContext';
+import PremiumSelect from '../components/PremiumSelect';
+import PremiumDatePicker from '../components/PremiumDatePicker';
 import { 
   AreaChart, 
   Area, 
@@ -73,7 +75,7 @@ const isOverdue = (dateString) => {
   const date = new Date(dateString);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return date < today && !isToday(dateString);
+  return date < new Date();
 };
 
 const OverviewCard = ({ title, value, icon: Icon, color = 'bg-brand-primary' }) => (
@@ -403,7 +405,7 @@ const MonthlyOverview = () => {
           </div>
           
           <div className="h-[120px] w-full relative z-10">
-             <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                    <defs>
                       <linearGradient id="monthGradient" x1="0" y1="0" x2="1" y2="0">
@@ -411,19 +413,19 @@ const MonthlyOverview = () => {
                          <stop offset="100%" stopColor="#ec4899" />
                       </linearGradient>
                       <linearGradient id="monthFill" x1="0" y1="0" x2="0" y2="1">
-                         <stop offset="0%" stopColor="#6366f1" stopOpacity={0.1}/>
-                         <stop offset="100%" stopColor="#6366f1" stopOpacity={0}/>
+                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                         <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                       </linearGradient>
                    </defs>
-                    <CartesianGrid strokeDasharray="2 2" vertical={true} stroke="#E2E8F0" opacity={0.6} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.4} />
                     <XAxis 
                        dataKey="name" 
                        axisLine={false} 
                        tickLine={false} 
-                       tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 900 }}
+                       tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }}
                        dy={10}
                     />
-                    <YAxis hide={true} />
+                    <YAxis hide={true} domain={['dataMin - 100', 'dataMax + 100']} />
                     <Tooltip 
                        contentStyle={{ 
                           borderRadius: '12px', 
@@ -437,35 +439,27 @@ const MonthlyOverview = () => {
                        itemStyle={{ color: '#1e293b' }}
                     />
                     <Area 
-                       type="linear" 
+                       type="monotone" 
                        dataKey="revenue" 
-                       stroke="#64748b" 
-                       strokeWidth={2} 
-                       fill="transparent" 
-                       animationDuration={1000} 
-                       dot={(props) => {
-                          const { cx, cy, index } = props;
-                          const currentVal = chartData[index]?.revenue;
-                          const prevVal = index > 0 ? chartData[index - 1]?.revenue : null;
-                          const nextVal = index < chartData.length - 1 ? chartData[index + 1]?.revenue : null;
-                          
-                          let dotColor = '#6366f1'; // Default
-                          
-                          // logic for peak (red) and valley (blue)
-                          if (prevVal !== null && nextVal !== null) {
-                             if (currentVal >= prevVal && currentVal >= nextVal) dotColor = '#ef4444'; // Peak
-                             else if (currentVal <= prevVal && currentVal <= nextVal) dotColor = '#3b82f6'; // Valley
-                          } else if (prevVal === null && nextVal !== null) {
-                             // First point
-                             dotColor = currentVal >= nextVal ? '#ef4444' : '#3b82f6';
-                          } else if (nextVal === null && prevVal !== null) {
-                             // Last point
-                             dotColor = currentVal >= prevVal ? '#ef4444' : '#3b82f6';
-                          }
-
-                          return <circle key={index} cx={cx} cy={cy} r={5} fill={dotColor} stroke="#fff" strokeWidth={2} />;
+                       stroke="#6366f1" 
+                       strokeWidth={4} 
+                       fill="url(#monthFill)" 
+                       strokeLinecap="round"
+                       animationDuration={1500} 
+                       dot={{ 
+                          r: 4, 
+                          fill: '#6366f1', 
+                          stroke: '#fff', 
+                          strokeWidth: 2,
+                          fillOpacity: 1
                        }}
-                       activeDot={{ r: 7, fill: '#1e293b', stroke: '#fff', strokeWidth: 3 }}
+                       activeDot={{ 
+                          r: 6, 
+                          fill: '#6366f1', 
+                          stroke: '#fff', 
+                          strokeWidth: 3,
+                          style: { filter: 'drop-shadow(0 0 8px rgba(99, 102, 241, 0.4))' }
+                       }}
                     />
                 </AreaChart>
              </ResponsiveContainer>
@@ -480,7 +474,7 @@ const MonthlyOverview = () => {
            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden mb-6">
               <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-3 bg-slate-50/50 border-b border-slate-100">
                 <div className="flex gap-2">
-                  {['origin', 'follow-up', 'converted'].map(tab => (
+                  {['origin', 'follow-up', 'converted', 'not-converted'].map(tab => (
                     <button
                       key={tab}
                       onClick={() => { setActiveTab(tab); setPage(1); setSelectedLeads([]); }}
@@ -564,6 +558,21 @@ const MonthlyOverview = () => {
                          <th className="px-4 py-4 text-right pr-6">Actions</th>
                        </>
                     )}
+                    {activeTab === 'not-converted' && (
+                       <>
+                         <th className="px-6 py-4">Lead ID</th>
+                         <th className="px-4 py-4">Name</th>
+                         <th className="px-4 py-4">Phone</th>
+                         <th className="px-4 py-4">Source</th>
+                         <th className="px-4 py-4">Location</th>
+                         <th className="px-4 py-4">Date</th>
+                          <th className="px-4 py-4 whitespace-nowrap">Handled By</th>
+                         <th className="px-4 py-4 text-center">Amount</th>
+                         <th className="px-4 py-4">Status</th>
+                         <th className="px-4 py-4">Remarks</th>
+                         <th className="px-4 py-4 text-right pr-6">Actions</th>
+                       </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -619,38 +628,40 @@ const MonthlyOverview = () => {
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium truncate max-w-[150px]`}>{lead.requirement}</td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>₹{lead.budget?.toLocaleString()}</td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
-                            <select 
+                            <PremiumSelect 
                               value={lead.convertedBy || ''}
-                              onChange={(e) => handleOptimisticUpdate(lead._id, { convertedBy: e.target.value })}
-                              className="bg-transparent border border-transparent hover:border-slate-200 text-[11px] font-bold text-brand-primary rounded focus:ring-0 cursor-pointer p-0.5 w-24 truncate"
-                            >
-                              <option value="">Sales Owner</option>
-                              {salesMembers.map(name => (
-                                <option key={name} value={name}>{name}</option>
-                              ))}
-                            </select>
+                              options={[
+                                { label: 'Sales Owner', value: '' },
+                                ...salesMembers.map(name => ({ label: name, value: name }))
+                              ]}
+                              onChange={(val) => handleOptimisticUpdate(lead._id, { convertedBy: val })}
+                              className="w-28"
+                            />
                           </td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                             <div className="flex items-center gap-2">
-                              <select 
+                              <PremiumSelect 
                                 value={lead.status}
-                                onChange={(e) => {
-                                  const newStatus = e.target.value;
-                                  const updates = { status: newStatus };
-                                  if (newStatus === 'follow-up' && !lead.nextFollowUp) {
+                                disabled={!lead.convertedBy}
+                                options={[
+                                  { label: 'Origin', value: 'origin' },
+                                  { label: 'Follow-up', value: 'follow-up' },
+                                  { label: 'Converted', value: 'converted' },
+                                  { label: 'Not Converted', value: 'not-converted' }
+                                ]}
+                                onChange={(val) => {
+                                  const updates = { status: val };
+                                  if (val === 'follow-up' && !lead.nextFollowUp) {
                                     const tomorrow = new Date();
                                     tomorrow.setDate(tomorrow.getDate() + 1);
                                     updates.nextFollowUp = tomorrow;
                                   }
                                   handleOptimisticUpdate(lead._id, updates);
                                 }}
-                                className="bg-slate-50 border-none text-[10px] font-bold uppercase tracking-widest text-brand-primary rounded-lg focus:ring-0 cursor-pointer p-1"
-                              >
-                                <option value="origin">Origin</option>
-                                <option value="follow-up">Follow-up</option>
-                                <option value="converted">Converted</option>
-                                <option value="not-converted">Not Converted</option>
-                              </select>
+                                variant="status"
+                                toggleClassName={lead.status === 'converted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : lead.status === 'not-converted' ? 'bg-slate-50 text-slate-500 border-slate-100' : 'bg-white text-brand-primary border-brand-primary/20'}
+                                className="w-32"
+                              />
                               <button 
                                 onClick={(e) => { e.stopPropagation(); setSelectedLeadForNote(lead); }}
                                 className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-all"
@@ -659,6 +670,62 @@ const MonthlyOverview = () => {
                                 <NotebookPen size={14} />
                               </button>
                             </div>
+                          </td>
+                        </>
+                      )}
+
+                      {activeTab === 'not-converted' && (
+                        <>
+                          <td className={`px-6 py-5 first:rounded-l-2xl border-y border-l transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                             <div className="flex items-center gap-3">
+                                <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">{lead.leadId}</span>
+                             </div>
+                          </td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[13px] font-bold text-slate-900 group relative`}>
+                              <div 
+                                className="flex flex-col cursor-pointer hover:text-brand-primary transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setSelectedLeadForDetail(lead); }}
+                              >
+                                <span>{lead.name}</span>
+                                {lead.email && <span className="text-[10px] text-brand-primary/70 font-medium lowercase tracking-tight">{lead.email}</span>}
+                              </div>
+                           </td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium whitespace-nowrap`}>
+                             <div className="flex items-center gap-2">
+                               <span>{lead.phone || '--'}</span>
+                             </div>
+                          </td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium`}>{lead.location || '-'}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-600`}>{lead.convertedBy || 'Sales Staff'}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-center text-[12px] font-bold text-slate-900`}>₹{(lead.budget || lead.totalAmount || 0).toLocaleString()}</td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'}`}>
+                             <PremiumSelect 
+                               value={lead.status}
+                               options={[
+                                 { label: 'Origin', value: 'origin' },
+                                 { label: 'Follow-up', value: 'follow-up' },
+                                 { label: 'Converted', value: 'converted' },
+                                 { label: 'Not Converted', value: 'not-converted' }
+                               ]}
+                               onChange={(val) => handleOptimisticUpdate(lead._id, { status: val })}
+                               variant="status"
+                               toggleClassName="bg-slate-50 text-slate-500 border-slate-100 font-bold uppercase tracking-widest text-[9px]"
+                               className="w-32"
+                             />
+                          </td>
+                          <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
+                             <input 
+                               type="text"
+                               defaultValue={lead.remarks || ''}
+                               placeholder="Reason for loss..."
+                               onBlur={(e) => {
+                                 if (e.target.value !== lead.remarks) handleUpdateLead(lead._id, { remarks: e.target.value });
+                               }}
+                               className="bg-transparent border-none text-[11px] font-medium text-slate-700 focus:ring-0 p-0 w-24 placeholder:text-slate-400"
+                             />
                           </td>
                         </>
                       )}
@@ -702,57 +769,51 @@ const MonthlyOverview = () => {
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{lead.location || 'City'}</td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
-                              <select 
+                              <PremiumSelect 
                                 value={lead.priority}
-                                onChange={(e) => handleOptimisticUpdate(lead._id, { priority: e.target.value })}
-                                className={`text-[8px] font-bold  tracking-widest border-none rounded-lg focus:ring-0 p-1 cursor-pointer w-full
-                                  ${lead.priority === 'high' ? 'bg-red-100 text-red-600' : lead.priority === 'normal' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'}`}
-                              >
-                                <option value="low">Low</option>
-                                <option value="normal">Normal</option>
-                                <option value="high">High</option>
-                              </select>
+                                options={[
+                                  { label: 'Low', value: 'low' },
+                                  { label: 'Normal', value: 'normal' },
+                                  { label: 'High', value: 'high', className: 'text-rose-600' }
+                                ]}
+                                onChange={(val) => handleOptimisticUpdate(lead._id, { priority: val })}
+                                variant="status"
+                                toggleClassName={lead.priority === 'high' ? 'bg-red-50 text-red-600 border-red-100' : lead.priority === 'normal' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-slate-50 text-slate-500 border-slate-100'}
+                                className="w-24"
+                              />
                            </td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-500 font-medium max-w-[120px] truncate`}>{lead.workType || lead.requirement}</td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold`}>
-                              <label 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  try { e.currentTarget.querySelector('input').showPicker(); } catch(err) {}
-                                }}
-                                className={`${isOverdue(lead.nextFollowUp) ? 'bg-red-100 text-red-700 hover:bg-red-200' : isToday(lead.nextFollowUp) ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'} rounded-lg px-2 py-1 inline-block text-[10px] font-bold relative transition-colors cursor-pointer`}
-                              >
-                                {lead.nextFollowUp ? new Date(lead.nextFollowUp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
-                                <input 
-                                  type="date"
-                                  className="absolute opacity-0 top-0 left-0 w-full h-full cursor-pointer z-20"
-                                  value={lead.nextFollowUp ? new Date(lead.nextFollowUp).toISOString().split('T')[0] : ''}
-                                  onChange={(e) => handleOptimisticUpdate(lead._id, { nextFollowUp: e.target.value })}
-                                />
-                              </label>
+                              <PremiumDatePicker
+                                value={lead.nextFollowUp}
+                                onChange={(val) => handleOptimisticUpdate(lead._id, { nextFollowUp: val })}
+                                isOverdue={isOverdue(lead.nextFollowUp)}
+                                placeholder="Next Follow"
+                              />
                            </td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
                              <div className="flex items-center gap-2">
-                               <select 
+                               <PremiumSelect 
                                  value={lead.status}
-                                 onChange={(e) => {
-                                   const newStatus = e.target.value;
-                                   const updates = { status: newStatus };
-                                   if (newStatus === 'follow-up' && !lead.nextFollowUp) {
+                                 options={[
+                                   { label: 'Origin', value: 'origin' },
+                                   { label: 'Follow-up', value: 'follow-up' },
+                                   { label: 'Converted', value: 'converted' },
+                                   { label: 'Not Converted', value: 'not-converted' }
+                                 ]}
+                                 onChange={(val) => {
+                                   const updates = { status: val };
+                                   if (val === 'follow-up' && !lead.nextFollowUp) {
                                      const tomorrow = new Date();
                                      tomorrow.setDate(tomorrow.getDate() + 1);
                                      updates.nextFollowUp = tomorrow;
                                    }
                                    handleOptimisticUpdate(lead._id, updates);
                                  }}
-                                 className={`border border-transparent text-[10px] font-bold uppercase tracking-widest rounded-lg focus:ring-0 cursor-pointer px-2 py-1.5 transition-colors text-center shadow-sm
-                                   ${lead.status === 'converted' ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : lead.status === 'not-converted' ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-white text-slate-600 hover:bg-slate-50 shadow-slate-200/50'}`}
-                               >
-                                 <option value="origin">Origin</option>
-                                 <option value="follow-up">Follow-up</option>
-                                 <option value="converted">Converted</option>
-                                 <option value="not-converted">Not Converted</option>
-                               </select>
+                                 variant="status"
+                                 toggleClassName={lead.status === 'converted' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : lead.status === 'not-converted' ? 'bg-slate-50 text-slate-500 border-slate-100' : 'bg-white text-brand-primary border-brand-primary/20'}
+                                 className="w-32"
+                               />
                                <button 
                                  onClick={(e) => { e.stopPropagation(); setSelectedLeadForNote(lead); }}
                                  className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-all"
@@ -763,16 +824,15 @@ const MonthlyOverview = () => {
                              </div>
                            </td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-brand-primary text-left`}>
-                             <select 
+                             <PremiumSelect 
                                value={lead.convertedBy || ''}
-                               onChange={(e) => handleOptimisticUpdate(lead._id, { convertedBy: e.target.value })}
-                               className="bg-transparent border border-transparent hover:border-slate-200 text-[11px] font-bold rounded focus:ring-0 cursor-pointer p-0.5 w-24 truncate"
-                             >
-                               <option value="">Sales Owner</option>
-                               {salesMembers.map(name => (
-                                 <option key={name} value={name}>{name}</option>
-                               ))}
-                             </select>
+                               options={[
+                                 { label: 'Sales Owner', value: '' },
+                                 ...salesMembers.map(name => ({ label: name, value: name }))
+                               ]}
+                               onChange={(val) => handleOptimisticUpdate(lead._id, { convertedBy: val })}
+                               className="w-28"
+                             />
                            </td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] font-bold text-slate-900`}>{lead.totalAmount || lead.budget || 0}</td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
@@ -827,16 +887,15 @@ const MonthlyOverview = () => {
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[10px] font-bold text-slate-500 uppercase tracking-widest`}>{lead.source || '-'}</td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-600`}>{lead.convertedBy || 'Sales Staff'}</td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
-                             <select 
+                             <PremiumSelect 
                                value={lead.assignedTo || ''}
-                               onChange={(e) => handleOptimisticUpdate(lead._id, { assignedTo: e.target.value })}
-                               className="bg-transparent border border-transparent hover:border-slate-200 text-[11px] font-bold text-slate-700 focus:ring-0 p-0.5 w-28 cursor-pointer rounded truncate"
-                             >
-                               <option value="">Assign To...</option>
-                               {allMembers.map(name => (
-                                 <option key={name} value={name}>{name}</option>
-                               ))}
-                             </select>
+                               options={[
+                                 { label: 'Assign To...', value: '' },
+                                 ...allMembers.map(name => ({ label: name, value: name }))
+                               ]}
+                               onChange={(val) => handleOptimisticUpdate(lead._id, { assignedTo: val })}
+                               className="w-32"
+                             />
                            </td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[12px] text-slate-600 font-medium`}>{new Date(lead.date).toLocaleDateString('en-GB')}</td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-center`}>
@@ -865,46 +924,40 @@ const MonthlyOverview = () => {
                               {(lead.totalAmount || lead.budget || 0) - (lead.advanceAmount || 0)}
                            </td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
-                              <select 
+                              <PremiumSelect 
                                 value={lead.paymentStatus}
-                                onChange={(e) => handleUpdateLead(lead._id, { paymentStatus: e.target.value })}
-                                className={`text-[10px] font-bold uppercase tracking-widest rounded-lg px-2 py-1.5 border border-transparent focus:ring-0 cursor-pointer shadow-sm
-                                  ${lead.paymentStatus === 'received' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="partial">Partial</option>
-                                <option value="received">Received</option>
-                              </select>
+                                options={[
+                                  { label: 'Pending', value: 'pending', className: 'text-rose-600' },
+                                  { label: 'Partial', value: 'partial', className: 'text-amber-600' },
+                                  { label: 'Received', value: 'received', className: 'text-emerald-600' }
+                                ]}
+                                onChange={(val) => handleOptimisticUpdate(lead._id, { paymentStatus: val })}
+                                variant="status"
+                                toggleClassName={lead.paymentStatus === 'received' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}
+                                className="w-28"
+                              />
                            </td>
                           <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'}`}>
-                              <select 
+                              <PremiumSelect 
                                 value={lead.deliveryStatus}
-                                onChange={(e) => handleUpdateLead(lead._id, { deliveryStatus: e.target.value })}
-                                className={`text-[10px] font-bold uppercase tracking-widest rounded-lg px-2 py-1.5 border border-transparent focus:ring-0 cursor-pointer shadow-sm
-                                  ${lead.deliveryStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' : lead.deliveryStatus === 'in-progress' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}
-                              >
-                                <option value="not-started">Not Started</option>
-                                <option value="in-progress">In Progress</option>
-                                <option value="completed">Completed</option>
-                              </select>
+                                options={[
+                                  { label: 'Not Started', value: 'not-started' },
+                                  { label: 'In Progress', value: 'in-progress', className: 'text-blue-600' },
+                                  { label: 'Completed', value: 'completed', className: 'text-emerald-600' }
+                                ]}
+                                onChange={(val) => handleOptimisticUpdate(lead._id, { deliveryStatus: val })}
+                                variant="status"
+                                toggleClassName={lead.deliveryStatus === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : lead.deliveryStatus === 'in-progress' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-500 border-slate-100'}
+                                className="w-32"
+                              />
                            </td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-rose-50/70 border-rose-100 shadow-[inset_0_0_10px_rgba(244,63,94,0.1)]' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
-                              <label 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  try { e.currentTarget.querySelector('input').showPicker(); } catch(err) {}
-                                }}
-                                className={`relative inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-1 rounded-lg transition-colors cursor-pointer ${isItemOverdue ? 'bg-red-200 text-red-700 border border-red-300 animate-pulse-fast' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                              >
-                                {isItemOverdue && <AlertTriangle size={10} />}
-                                {lead.deadline ? new Date(lead.deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
-                                <input 
-                                  type="date"
-                                  className="absolute opacity-0 top-0 left-0 w-full h-full cursor-pointer z-20"
-                                  value={lead.deadline ? new Date(lead.deadline).toISOString().split('T')[0] : ''}
-                                  onChange={(e) => handleUpdateLead(lead._id, { deadline: e.target.value })}
-                                />
-                              </label>
+                              <PremiumDatePicker
+                                value={lead.deadline}
+                                onChange={(val) => handleOptimisticUpdate(lead._id, { deadline: val })}
+                                isOverdue={isItemOverdue}
+                                placeholder="Set Date"
+                              />
                            </td>
                            <td className={`px-4 py-5 border-y transition-all shadow-sm group-hover:shadow-md ${isSelected ? 'bg-indigo-50/50 border-brand-primary shadow-brand-shadow' : isItemOverdue ? 'bg-red-100 border-red-200' : 'bg-white border-slate-100'} text-[11px] font-bold text-slate-500`}>
                              <input 
@@ -1279,3 +1332,4 @@ const MonthlyOverview = () => {
 };
 
 export default MonthlyOverview;
+

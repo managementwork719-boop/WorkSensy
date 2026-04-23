@@ -2,6 +2,7 @@ import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './components/DashboardLayout';
 import { useAuth } from './context/AuthContext';
+import { FileText } from 'lucide-react';
 
 // Lazy Load Pages to reduce initial bundle size
 const Login = lazy(() => import('./pages/Login'));
@@ -15,6 +16,11 @@ const Clients = lazy(() => import('./pages/Clients'));
 const UserDashboard = lazy(() => import('./pages/UserDashboard'));
 const ProjectDashboard = lazy(() => import('./pages/ProjectDashboard'));
 const SetupPassword = lazy(() => import('./pages/SetupPassword'));
+const DocumentList = lazy(() => import('./pages/DocumentList'));
+const InvoiceCreator = lazy(() => import('./pages/InvoiceCreator'));
+const QuotationCreator = lazy(() => import('./pages/QuotationCreator'));
+const ActivityLog = lazy(() => import('./pages/ActivityLog'));
+
 import { ProjectsPage, LeadsPage, BillingPage } from './pages/PlaceholderPages';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -66,6 +72,22 @@ function App() {
                   <SalesDashboard mode="dashboard" />
                 ) : user?.role === 'project-manager' || user?.role === 'project-team' ? (
                   <ProjectDashboard />
+                ) : user?.role === 'accounts-manager' || user?.role === 'accounts-team' ? (
+                  <div className="min-h-[80vh] flex items-center justify-center">
+                    <div className="text-center space-y-6 max-w-md animate-in fade-in zoom-in duration-700">
+                      <div className="w-20 h-20 bg-brand-primary/10 rounded-3xl flex items-center justify-center mx-auto shadow-sm">
+                         <FileText size={40} className="text-brand-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Accounts Portal</h1>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                          Your account is restricted to financial operations. Please use the sidebar to manage 
+                          <span className="text-brand-primary font-bold"> Invoices</span> and 
+                          <span className="text-brand-primary font-bold"> Quotations</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <UserDashboard />
                 )}
@@ -123,6 +145,65 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['super-admin', 'admin', 'sales-manager', 'sales-team', 'project-manager']}>
                 <Clients />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/invoices" 
+            element={
+              <ProtectedRoute allowedRoles={['super-admin', 'admin', 'accounts-manager', 'accounts-team']}>
+                <DocumentList type="invoice" />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/invoices/create" 
+            element={
+              <ProtectedRoute allowedRoles={['super-admin', 'admin', 'accounts-manager', 'accounts-team']}>
+                <InvoiceCreator />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/invoices/edit/:id" 
+            element={
+              <ProtectedRoute allowedRoles={['super-admin', 'admin', 'accounts-manager', 'accounts-team']}>
+                <InvoiceCreator />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/quotations" 
+            element={
+              <ProtectedRoute allowedRoles={['super-admin', 'admin', 'accounts-manager', 'accounts-team']}>
+                <DocumentList type="quotation" />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/activity-logs" 
+            element={
+              <ProtectedRoute>
+                <ActivityLog />
+              </ProtectedRoute>
+            } 
+          />
+
+          <Route 
+            path="/quotations/create" 
+            element={
+              <ProtectedRoute allowedRoles={['super-admin', 'admin', 'accounts-manager', 'accounts-team']}>
+                <QuotationCreator />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/quotations/edit/:id" 
+            element={
+              <ProtectedRoute allowedRoles={['super-admin', 'admin', 'accounts-manager', 'accounts-team']}>
+                <QuotationCreator />
               </ProtectedRoute>
             } 
           />

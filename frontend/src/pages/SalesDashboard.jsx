@@ -32,29 +32,31 @@ import {
   Flame,
   AlertTriangle,
   Clock,
-  Search
+  Search,
+  LayoutGrid
 } from 'lucide-react';
+import PremiumSelect from '../components/PremiumSelect';
 import * as XLSX from 'xlsx';
 import { Skeleton, StatSkeleton, HeaderSkeleton, TableRowSkeleton, AnalyticsSkeleton, PulseSkeleton } from '../components/Skeleton';
 
 
 const StatCard = React.memo(({ title, value, icon: Icon }) => (
-  <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-4 border border-slate-200/60 flex flex-col gap-3 shadow-[0_4px_25px_rgba(0,0,0,0.03)] h-full transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+  <div className="bg-white/70 backdrop-blur-xl rounded-xl p-4 border border-slate-200/60 flex flex-col gap-3 shadow-[0_4px_25px_rgba(0,0,0,0.03)] h-full transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
     <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" 
       style={{background: 'linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(99,102,241,0.2) 100%)'}}>
       <Icon size={18} className="text-violet-600" />
     </div>
     <div>
-      <h3 className="text-[20px] font-black text-slate-900 tracking-tight leading-none">{value}</h3>
-      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400 mt-2">{title}</p>
+      <h3 className="text-[15px] font-black text-slate-900 tracking-tight leading-none">{value}</h3>
+      <p className="text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-400 mt-2">{title}</p>
     </div>
   </div>
 ));
 
 const FeaturedMetricCard = React.memo(({ value, subLabel }) => (
-  <div className="bg-[#1a1f3a] rounded-2xl p-7 relative overflow-hidden flex flex-col justify-between h-full shadow-xl" style={{background: 'linear-gradient(135deg, #1e2a5e 0%, #2d1b69 50%, #1a1035 100%)'}}>
-    <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
-    <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl -ml-16 -mb-16" />
+  <div className="bg-[#1a1f3a] rounded-xl p-7 relative overflow-hidden flex flex-col justify-between h-full shadow-xl" style={{background: 'linear-gradient(135deg, #1e2a5e 0%, #2d1b69 50%, #1a1035 100%)'}}>
+    <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-2xl blur-3xl -mr-16 -mt-16" />
+    <div className="absolute bottom-0 left-0 w-40 h-40 bg-purple-500/10 rounded-2xl blur-3xl -ml-16 -mb-16" />
     <div className="relative z-10">
       <div className="flex justify-between items-start mb-8">
         <div className="w-10 h-10 bg-white/10 rounded-xl border border-white/10 flex items-center justify-center shadow-lg">
@@ -194,6 +196,15 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
     budget: '',
     location: ''
   });
+
+  const leaderboardData = React.useMemo(() => {
+    const topEarners = [...team].sort((a,b) => (b.stats?.totalRevenue||0) - (a.stats?.totalRevenue||0));
+    const maxRev = Math.max(...topEarners.map(m => m.stats?.totalRevenue || 1), 1);
+    return topEarners.slice(0, 5).map(member => ({
+      ...member,
+      percentage: ((member.stats?.totalRevenue || 0) / maxRev) * 100
+    }));
+  }, [team]);
 
 
   useEffect(() => {
@@ -360,21 +371,20 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
           </span>
         </div>
 
-        <div className="bg-white/70 backdrop-blur-md border border-slate-200 shadow-sm px-3 py-1.5 rounded-lg flex items-center gap-2">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Year</span>
-          <select
+        <div className="bg-white/70 backdrop-blur-md border border-slate-200 shadow-sm px-4 py-1.5 rounded-xl flex items-center gap-3">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Select Period</span>
+          <PremiumSelect
             value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
-          >
-            {(() => {
+            onChange={(val) => setSelectedYear(val)}
+            options={(() => {
               const years = [];
               const startYear = 2024;
               const endYear = new Date().getFullYear() + 1;
-              for (let y = startYear; y <= endYear; y++) years.push(y.toString());
-              return years.map(y => <option key={y} value={y}>{y}</option>);
+              for (let y = startYear; y <= endYear; y++) years.push({ label: y.toString(), value: y.toString() });
+              return years;
             })()}
-          </select>
+            className="w-24 border-none"
+          />
         </div>
       </div>
 
@@ -386,24 +396,61 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
 
             {/* Unified Header title + All 5 KPI tiles in one frame */}
-            <div className="lg:col-span-12 bg-white/70 backdrop-blur-xl rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.03)] border border-slate-200/60 p-6 flex flex-col gap-6">
-              {/* Header inside card */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{background: 'linear-gradient(135deg,#6366f1,#7c3aed)'}}>
-                  <BarChart3 size={18} className="text-white" />
+            <div className="lg:col-span-12 relative overflow-hidden bg-white/40 p-3 rounded-[17px] border border-slate-200/50 shadow-sm group">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-50/40 via-violet-50/20 to-rose-50/30 opacity-60" />
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-violet-400/10 rounded-full blur-3xl animate-pulse" />
+              
+              <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 p-6 rounded-[17px] flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden">
+                <div className="flex-1 flex flex-col md:flex-row items-center gap-6 z-10 text-center md:text-left">
+                  <div className="relative w-16 h-16 rounded-[17px] bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white shadow-2xl shadow-indigo-200/50 group-hover:scale-105 transition-transform duration-500">
+                    <Target size={30} className="relative z-10" />
+                    <div className="absolute inset-0 bg-white/20 rounded-[17px] blur-sm scale-90" />
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-center md:justify-start gap-2 mb-1.5">
+                      <span className="text-[10px] font-black text-indigo-500/80 uppercase tracking-[0.2em] leading-none">
+                        {new Date().getHours() < 12 ? '☀️ Good Morning' : new Date().getHours() < 17 ? '🌤️ Good Afternoon' : '🌙 Good Evening'}
+                      </span>
+                      <div className="w-1 h-1 rounded-full bg-slate-300" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none flex items-center gap-1">
+                        <Activity size={10} className="text-emerald-500" /> Real-time Sync
+                      </span>
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tighter leading-none mb-3">
+                      Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">{user?.name?.split(' ')[0]}!</span>
+                    </h2>
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                      <p className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/50 rounded-full border border-slate-100">
+                        You have <span className="text-indigo-600 font-extrabold">{stats?.available || 0}</span> new leads to process today
+                      </p>
+                      <p className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50/50 rounded-full border border-emerald-100/50">
+                        Let's hit the target! 🚀
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-[22px] font-black text-slate-900 leading-tight tracking-tight">
-                    Welcome back, {user?.name?.split(' ')[0]}
-                  </h2>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.16em] mt-0.5">
-                    Sales Analytics &amp; Team Tracking Dashboard
-                  </p>
+
+                <div className="hidden xl:flex items-center gap-5 z-10 shrink-0">
+                  <div className="bg-white/60 p-3 rounded-2xl border border-white flex flex-col items-end shadow-sm">
+                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Access Level</p>
+                     <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-black text-indigo-900 uppercase">Sales Team</span>
+                        <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                           <LayoutGrid size={14} />
+                        </div>
+                     </div>
+                  </div>
+                  <div className="w-[1px] h-10 bg-slate-200/50" />
+                  <div className="flex flex-col items-end">
+                     <h4 className="text-2xl font-black text-slate-900 leading-none mb-1">₹{stats?.total?.revenue?.toLocaleString() || 0}</h4>
+                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Revenue Forecast</p>
+                  </div>
                 </div>
               </div>
 
               {/* 5 KPI Tiles in one row */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
                 <StatCard 
                   title={user?.role === 'sales-team' ? "My Revenue" : "Total Revenue"} 
                   value={`₹${stats?.total?.revenue?.toLocaleString() || 0}`} 
@@ -425,7 +472,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
                   icon={CheckCircle2} 
                 />
                 <div className="h-full">
-                  <div className="bg-[#0f172a] rounded-2xl p-4 border border-slate-800 flex flex-col gap-3 shadow-xl h-full relative overflow-hidden group cursor-pointer">
+                  <div className="bg-[#0f172a] rounded-2xl p-4 border border-slate-800 flex flex-col gap-3 shadow-xl h-full relative overflow-hidden group cursor-pointer hover:bg-slate-900 transition-colors">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl -mr-8 -mt-8" />
                     <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center relative z-10 border border-white/5">
                       <Flame size={16} className="text-orange-400" />
@@ -479,19 +526,15 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl opacity-50" />
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-5 relative z-10">Leaderboard</h3>
                 <div className="space-y-4 relative z-10 flex-1 overflow-auto">
-                  {(() => {
-                    const topEarners = [...team].sort((a,b) => (b.stats?.totalRevenue||0) - (a.stats?.totalRevenue||0));
-                    const maxRev = Math.max(...topEarners.map(m => m.stats?.totalRevenue || 1), 1);
-                    return topEarners.slice(0, 5).map((member) => (
-                      <LeaderboardItem 
-                        key={member._id} 
-                        name={member.name} 
-                        value={member.stats?.totalRevenue || 0} 
-                        percentage={((member.stats?.totalRevenue || 0) / maxRev) * 100}
-                      />
-                    ));
-                  })()}
-                  {team.length === 0 && (
+                  {leaderboardData.map((member) => (
+                    <LeaderboardItem 
+                      key={member._id} 
+                      name={member.name} 
+                      value={member.stats?.totalRevenue || 0} 
+                      percentage={member.percentage}
+                    />
+                  ))}
+                  {leaderboardData.length === 0 && (
                     <p className="text-[10px] text-slate-500 italic text-center py-8">No data yet</p>
                   )}
                 </div>
@@ -898,7 +941,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
                        <h3 className="text-2xl font-black tracking-tight">₹{memberLeads?.monthlyStats?.filter(m => m._id.startsWith('2026')).reduce((acc, curr) => acc + (curr.revenue || 0), 0).toLocaleString() || 0}</h3>
                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mt-1.5 opacity-80">2026 Revenue</p>
                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                          <div className="w-1.5 h-1.5 rounded-2xl bg-indigo-500 animate-pulse" />
                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em]">
                              {memberLeads?.monthlyStats?.filter(m => m._id.startsWith('2026')).length} Months Tracked
                           </span>
@@ -906,7 +949,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
                     </div>
                   </div>
 
-                  <div className="bg-pink-50/50 border border-pink-100/50 rounded-3xl p-8 flex items-start gap-6 mb-12 shadow-sm relative overflow-hidden group">
+                  <div className="bg-pink-50/50 border border-pink-100/50 rounded-2xl p-8 flex items-start gap-6 mb-12 shadow-sm relative overflow-hidden group">
                      <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-110 transition-transform duration-700">
                         <TrendingUp size={120} />
                      </div>
@@ -1014,6 +1057,48 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
                                               {new Date(lead.updatedAt).toLocaleDateString()}
                                            </td>
                                            <td className="px-8 py-5 text-[14px] font-black text-emerald-600 text-right">
+                                              ₹{(lead.totalAmount || lead.budget || 0).toLocaleString()}
+                                           </td>
+                                        </tr>
+                                     ))}
+                                  </tbody>
+                               </table>
+                            </div>
+                        </div>
+
+                        {/* Unsuccessful Attempts */}
+                        <div>
+                           <div className="flex items-center justify-between mb-5">
+                              <h3 className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-400 flex items-center gap-3">
+                                <TrendingDown size={16} className="text-rose-500" /> Unsuccessful Attempts (Not Converted)
+                              </h3>
+                              <div className="h-[1px] flex-grow mx-6 bg-slate-100" />
+                              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{memberLeads.notConverted?.length || 0} Archived</span>
+                           </div>
+                           <div className="bg-white border border-slate-200/60 rounded-3xl overflow-hidden shadow-sm">
+                               <table className="w-full text-left">
+                                  <thead className="bg-slate-50/50">
+                                     <tr className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] border-b border-slate-100">
+                                        <th className="px-8 py-5">Prospect Identity</th>
+                                        <th className="px-8 py-5">Archive Reason</th>
+                                        <th className="px-8 py-5 text-right">Last Valuation</th>
+                                     </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                     {!memberLeads.notConverted || memberLeads.notConverted.length === 0 ? (
+                                        <tr><td colSpan="3" className="px-8 py-12 text-center text-[11px] text-slate-400 font-black uppercase tracking-[0.2em] bg-slate-50/20">Zero Archived Attempts</td></tr>
+                                     ) : memberLeads.notConverted.map(lead => (
+                                        <tr key={lead._id} className="hover:bg-slate-50/50 transition-colors group">
+                                           <td className="px-8 py-5">
+                                              <div className="text-[13px] font-black text-slate-900 group-hover:text-rose-600 transition-colors">{lead.name}</div>
+                                              <div className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-widest">{lead.source || 'Direct Enquiry'}</div>
+                                           </td>
+                                           <td className="px-8 py-5">
+                                              <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-rose-100 italic">
+                                                 {lead.remarks || 'No Final Remark'}
+                                              </span>
+                                           </td>
+                                           <td className="px-8 py-5 text-[14px] font-black text-slate-400 text-right">
                                               ₹{(lead.totalAmount || lead.budget || 0).toLocaleString()}
                                            </td>
                                         </tr>

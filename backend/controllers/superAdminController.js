@@ -1,5 +1,6 @@
 import Company from '../models/Company.js';
 import User from '../models/User.js';
+import { createActivityLog } from '../utils/logger.js';
 
 export const setupNewCompany = async (req, res, next) => {
   try {
@@ -30,6 +31,12 @@ export const setupNewCompany = async (req, res, next) => {
         company,
         admin,
       },
+    });
+
+    createActivityLog(req, {
+      action: 'Setup Company',
+      module: 'System',
+      description: `Setup new company: ${company.name} and admin: ${admin.email}`
     });
   } catch (err) {
     res.status(400).json({
@@ -72,6 +79,12 @@ export const updateCompany = async (req, res, next) => {
         res.status(200).json({
             status: 'success',
             data: { company }
+        });
+
+        createActivityLog(req, {
+            action: 'Update Company',
+            module: 'System',
+            description: `Updated company details for ${company.name}`
         });
     } catch (err) {
         next(err);

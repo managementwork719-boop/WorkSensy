@@ -12,7 +12,12 @@ import {
   Building2,
   Palette,
   CloudLightning,
-  ArrowRight
+  ArrowRight,
+  Globe,
+  Phone,
+  CreditCard,
+  Briefcase,
+  Type
 } from 'lucide-react';
 
 const Settings = () => {
@@ -29,37 +34,90 @@ const Settings = () => {
   const [previewUrl, setPreviewUrl] = useState(user?.profilePic || null);
   const [profilePic, setProfilePic] = useState(null);
 
-  // SMTP Settings State
+  // Company Brand/Identity State
+  const [companyData, setCompanyData] = useState({
+    name: '',
+    industry: '',
+    website: '',
+    address: '',
+    phone: '',
+    businessEmail: '',
+    logo: '',
+    bankDetails: {
+      accountName: '',
+      accountNumber: '',
+      bankName: '',
+      ifsc: ''
+    },
+    docLabels: {
+      invoiceHeading: 'INVOICE',
+      quotationHeading: 'QUOTATION',
+      billTo: 'INVOICE TO',
+      fromLabel: 'FROM OFFICE',
+      termsLabel: 'Terms & Condition',
+      bankInfoLabel: 'PAYMENT INFORMATION'
+    }
+  });
+
   const [smtpData, setSmtpData] = useState({
     host: '',
     port: 465,
     user: '',
     pass: '',
-    senderName: user?.companyId?.name || ''
+    senderName: ''
   });
+
   const [testLoading, setTestLoading] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
 
   useEffect(() => {
-    const fetchSmtp = async () => {
+    const fetchCompany = async () => {
         try {
             const res = await API.get('/companies/my-company');
-            if (res.data.data.company.smtpConfig) {
-                const config = res.data.data.company.smtpConfig;
-                setSmtpData({
-                    host: config.host || '',
-                    port: config.port || 465,
-                    user: config.user || '',
-                    pass: '', // Never show existing password for security
-                    senderName: config.senderName || user?.companyId?.name || ''
+            const company = res.data.data.company;
+            if (company) {
+                // Set SMTP
+                if (company.smtpConfig) {
+                    setSmtpData({
+                        host: company.smtpConfig.host || '',
+                        port: company.smtpConfig.port || 465,
+                        user: company.smtpConfig.user || '',
+                        pass: '', 
+                        senderName: company.smtpConfig.senderName || company.name || ''
+                    });
+                }
+                // Set Branding/Identity
+                setCompanyData({
+                    name: company.name || '',
+                    industry: company.industry || '',
+                    website: company.website || '',
+                    address: company.address || '',
+                    phone: company.phone || '',
+                    businessEmail: company.businessEmail || '',
+                    logo: company.logo || '',
+                    bankDetails: company.bankDetails || {
+                        accountName: '',
+                        accountNumber: '',
+                        bankName: '',
+                        ifsc: ''
+                    },
+                    docLabels: company.docLabels || {
+                        invoiceHeading: 'INVOICE',
+                        quotationHeading: 'QUOTATION',
+                        billTo: 'INVOICE TO',
+                        fromLabel: 'FROM OFFICE',
+                        termsLabel: 'Terms & Condition',
+                        bankInfoLabel: 'PAYMENT INFORMATION'
+                    }
                 });
+                setCompanyColor(company.themeColor || '#ea580c');
             }
         } catch (err) {
-            console.error('Failed to load SMTP config');
+            console.error('Failed to load company data');
         }
     };
     if (user?.role === 'admin' || user?.role === 'super-admin') {
-        fetchSmtp();
+        fetchCompany();
     }
   }, [user]);
 
@@ -100,6 +158,38 @@ const Settings = () => {
       alert(err.response?.data?.message || 'Failed to update profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCompanyUpdate = async (color) => {
+    setCompanyColor(color);
+    setLoading(true);
+    try {
+        await API.patch('/companies/my-company', { themeColor: color });
+        // Update local user context if necessary
+        const res = await API.get('/companies/my-company');
+        setUser({ ...user, companyId: res.data.data.company });
+    } catch (err) {
+        console.error('Failed to update theme color');
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleCompanySubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+        const payload = { ...companyData, themeColor: companyColor };
+        await API.patch('/companies/my-company', payload);
+        const res = await API.get('/companies/my-company');
+        setUser({ ...user, companyId: res.data.data.company });
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+        alert(err.response?.data?.message || 'Failed to update business profile');
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -312,6 +402,240 @@ const Settings = () => {
                 </button>
              </div>
           </form>
+
+          {/* Business Identity & Branding - Admin Only */}
+          {(user?.role === 'admin' || user?.role === 'super-admin') && (
+            <div className="bg-white p-6 rounded-xl border border-slate-200/60 shadow-sm space-y-6 mt-6 animate-in slide-in-from-right-4 duration-500">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-brand-primary/10 text-brand-primary rounded-lg">
+                        <Building2 size={20} />
+                    </div>
+                    <div>
+                        <h3 className="text-base font-black text-slate-900 tracking-tight">Business Identity</h3>
+                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-0.5 italic">External Documentation Profile</p>
+                    </div>
+                </div>
+
+                <form onSubmit={handleCompanySubmit} className="space-y-5 pt-2 border-t border-slate-50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Company Legal Name</label>
+                          <input 
+                            type="text" value={companyData.name}
+                            onChange={(e) => setCompanyData({...companyData, name: e.target.value})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Company Logo (URL)</label>
+                          <input 
+                            type="text" value={companyData.logo}
+                            placeholder="https://example.com/logo.png"
+                            onChange={(e) => setCompanyData({...companyData, logo: e.target.value})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Business Phone</label>
+                          <div className="relative">
+                            <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input 
+                              type="text" value={companyData.phone}
+                              placeholder="+91 999 000 1111"
+                              onChange={(e) => setCompanyData({...companyData, phone: e.target.value})}
+                              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                            />
+                          </div>
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Public Website</label>
+                          <div className="relative">
+                            <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <input 
+                              type="text" value={companyData.website}
+                              placeholder="www.example.com"
+                              onChange={(e) => setCompanyData({...companyData, website: e.target.value})}
+                              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                            />
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Office Address</label>
+                        <textarea 
+                          rows={3}
+                          value={companyData.address}
+                          onChange={(e) => setCompanyData({...companyData, address: e.target.value})}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm resize-none"
+                          placeholder="Tech Park, Sector-62, Noida..."
+                        />
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                        <button 
+                            type="submit" disabled={loading}
+                            className="px-6 py-2.5 bg-slate-900 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-lg shadow-lg hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                        >
+                            <Save size={14} />
+                            <span>Save Business Profile</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+          )}
+
+          {/* Financial Infrastructure - Admin Only */}
+          {(user?.role === 'admin' || user?.role === 'super-admin') && (
+            <div className="bg-white p-6 rounded-xl border border-slate-200/60 shadow-sm space-y-6 mt-6 animate-in slide-in-from-right-4 duration-500">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-brand-primary/10 text-brand-primary rounded-lg">
+                        <CreditCard size={20} />
+                    </div>
+                    <div>
+                        <h3 className="text-base font-black text-slate-900 tracking-tight">Financial Infrastructure</h3>
+                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-0.5 italic">Invoicing Bank Details</p>
+                    </div>
+                </div>
+
+                <form onSubmit={handleCompanySubmit} className="space-y-5 pt-2 border-t border-slate-50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Account Beneficiary Name</label>
+                          <input 
+                            type="text" value={companyData.bankDetails.accountName}
+                            onChange={(e) => setCompanyData({...companyData, bankDetails: { ...companyData.bankDetails, accountName: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Account Number</label>
+                          <input 
+                            type="text" value={companyData.bankDetails.accountNumber}
+                            onChange={(e) => setCompanyData({...companyData, bankDetails: { ...companyData.bankDetails, accountNumber: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Bank Name</label>
+                          <input 
+                            type="text" value={companyData.bankDetails.bankName}
+                            onChange={(e) => setCompanyData({...companyData, bankDetails: { ...companyData.bankDetails, bankName: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">IFSC / Swift Code</label>
+                          <input 
+                            type="text" value={companyData.bankDetails.ifsc}
+                            onChange={(e) => setCompanyData({...companyData, bankDetails: { ...companyData.bankDetails, ifsc: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                        <button 
+                            type="submit" disabled={loading}
+                            className="px-6 py-2.5 bg-slate-900 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-lg shadow-lg hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                        >
+                            <Save size={14} />
+                            <span>Save Financial Config</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+          )}
+
+          {/* Document Terminology - Admin Only */}
+          {(user?.role === 'admin' || user?.role === 'super-admin') && (
+            <div className="bg-white p-6 rounded-xl border border-slate-200/60 shadow-sm space-y-6 mt-6 animate-in slide-in-from-right-4 duration-500">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-brand-primary/10 text-brand-primary rounded-lg">
+                        <Type size={20} />
+                    </div>
+                    <div>
+                        <h3 className="text-base font-black text-slate-900 tracking-tight">Document Terminology</h3>
+                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-0.5 italic">Customize Fixed Labels</p>
+                    </div>
+                </div>
+
+                <form onSubmit={handleCompanySubmit} className="space-y-5 pt-2 border-t border-slate-50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Invoice Heading</label>
+                          <input 
+                            type="text" value={companyData.docLabels.invoiceHeading}
+                            onChange={(e) => setCompanyData({...companyData, docLabels: { ...companyData.docLabels, invoiceHeading: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Quotation Heading</label>
+                          <input 
+                            type="text" value={companyData.docLabels.quotationHeading}
+                            onChange={(e) => setCompanyData({...companyData, docLabels: { ...companyData.docLabels, quotationHeading: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">"Bill To" Label</label>
+                          <input 
+                            type="text" value={companyData.docLabels.billTo}
+                            onChange={(e) => setCompanyData({...companyData, docLabels: { ...companyData.docLabels, billTo: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">"From Office" Label</label>
+                          <input 
+                            type="text" value={companyData.docLabels.fromLabel}
+                            onChange={(e) => setCompanyData({...companyData, docLabels: { ...companyData.docLabels, fromLabel: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Terms Label</label>
+                          <input 
+                            type="text" value={companyData.docLabels.termsLabel}
+                            onChange={(e) => setCompanyData({...companyData, docLabels: { ...companyData.docLabels, termsLabel: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5">Bank Info Label</label>
+                          <input 
+                            type="text" value={companyData.docLabels.bankInfoLabel}
+                            onChange={(e) => setCompanyData({...companyData, docLabels: { ...companyData.docLabels, bankInfoLabel: e.target.value }})}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/60 rounded-lg focus:ring-2 focus:ring-brand-shadow focus:border-brand-primary outline-none transition-all font-semibold text-slate-900 text-sm"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                        <button 
+                            type="submit" disabled={loading}
+                            className="px-6 py-2.5 bg-slate-900 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-lg shadow-lg hover:bg-slate-800 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95"
+                        >
+                            <Save size={14} />
+                            <span>Save Terminology</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+          )}
 
           {/* SMTP Configuration - Admin Only */}
           {(user?.role === 'admin' || user?.role === 'super-admin') && (

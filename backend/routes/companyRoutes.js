@@ -9,8 +9,8 @@ router.use(protect);
 
 // Get/Update my company settings (Admins and Super Admins)
 router.get('/my-company', getMyCompany);
-router.patch('/my-company', restrictTo('admin', 'super-admin'), updateMyCompany);
-router.patch('/my-company/smtp', restrictTo('admin', 'super-admin'), updateSmtpSettings);
+router.patch('/my-company', restrictTo('admin', 'super-admin', 'sales-manager', 'sales-team'), updateMyCompany);
+router.patch('/my-company/smtp', restrictTo('admin', 'super-admin', 'sales-manager'), updateSmtpSettings);
 router.post('/my-company/test-smtp', restrictTo('admin', 'super-admin'), testSmtpSettings);
 
 export default router;

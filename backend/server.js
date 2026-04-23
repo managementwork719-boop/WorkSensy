@@ -17,6 +17,8 @@ import superAdminRoutes from './routes/superAdminRoutes.js';
 import companyRoutes from './routes/companyRoutes.js';
 import salesRoutes from './routes/salesRoutes.js';
 import clientRoutes from './routes/clientRoutes.js';
+import documentRoutes from './routes/documentRoutes.js';
+import activityLogRoutes from './routes/activityLogRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -62,7 +64,7 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // Body parser, reading data from body into req.body
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 
 // Custom Data Sanitization against NoSQL query injection
@@ -103,6 +105,8 @@ app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/clients', clientRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/activity-logs', activityLogRoutes);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

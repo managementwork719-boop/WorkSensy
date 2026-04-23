@@ -26,9 +26,8 @@ const isToday = (dateString) => {
 const isOverdue = (dateString) => {
   if (!dateString) return false;
   const date = new Date(dateString);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return date < today && !isToday(dateString);
+  const now = new Date();
+  return date < now;
 };
 
 const PersonalPipeline = () => {
@@ -64,81 +63,91 @@ const PersonalPipeline = () => {
     }
   };
 
-  const currentLeads = activeTab === 'follow-up' ? data.followUp : data.converted;
+  const { currentLeads, stats } = React.useMemo(() => {
+    const leads = activeTab === 'follow-up' ? data.followUp : data.converted;
+    
+    const attentionCount = 
+      data.followUp.filter(l => isOverdue(l.nextFollowUp)).length + 
+      data.converted.filter(l => isOverdue(l.deadline) && l.deliveryStatus !== 'completed').length;
+      
+    const totalRev = data.converted.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0);
+    
+    return {
+      currentLeads: leads,
+      stats: {
+        active: data.followUp.length,
+        attention: attentionCount,
+        success: data.converted.length,
+        revenue: totalRev
+      }
+    };
+  }, [activeTab, data]);
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {/* Tab Header */}
-      <div className="p-5 border-b border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-           <div className={`p-2 rounded-lg transition-colors ${activeTab === 'follow-up' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
-              {activeTab === 'follow-up' ? <Target size={18} /> : <CheckCircle2 size={18} />}
-           </div>
-           <div>
-              <h2 className="text-sm font-bold text-slate-900 tracking-tight uppercase">
-                {activeTab === 'follow-up' ? 'My Follow-up Pipeline' : 'My Converted Deals'}
-              </h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                {activeTab === 'follow-up' ? 'High Priority Leads Needing Action' : 'Record of Successfully Closed Assignments'}
-              </p>
-           </div>
-        </div>
-        
-        <div className="flex bg-slate-100 p-1 rounded-xl self-stretch sm:self-auto">
-           <button 
-             onClick={() => setActiveTab('follow-up')}
-             className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-               activeTab === 'follow-up' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-             }`}
-           >
-             Follow-ups
-           </button>
-           <button 
-             onClick={() => setActiveTab('converted')}
-             className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-               activeTab === 'converted' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-             }`}
-           >
-             Converted
-           </button>
-        </div>
+    <div className="bg-white rounded-3xl border border-slate-200/60 shadow-[0_4px_25px_rgba(0,0,0,0.02)] overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-700">
+      {/* Light Action Header */}
+      <div className="p-6 border-b border-slate-100 bg-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div className="flex items-center gap-4">
+               <div className={`w-12 h-12 rounded-[36px] flex items-center justify-center shadow-sm ${activeTab === 'follow-up' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                  {activeTab === 'follow-up' ? <Target size={22} /> : <CheckCircle2 size={22} />}
+               </div>
+               <div>
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight uppercase">
+                    {activeTab === 'follow-up' ? 'Lead Pipeline' : 'Converted Deals'}
+                  </h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                    {activeTab === 'follow-up' ? 'Monitoring High Priority Actions' : 'Archive of Successfully Closed Deals'}
+                  </p>
+               </div>
+            </div>
+            
+            <div className="flex bg-slate-100 p-1.5 rounded-[36px]">
+               {['follow-up', 'converted'].map(tab => (
+                 <button 
+                   key={tab}
+                   onClick={() => setActiveTab(tab)}
+                   className={`px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${
+                     activeTab === tab ? 'bg-white text-indigo-900 shadow-md scale-100' : 'text-slate-400 hover:text-slate-600'
+                   }`}
+                 >
+                   {tab.replace('-', ' ')}
+                 </button>
+               ))}
+            </div>
       </div>
 
-      {/* Stats Quick View (Contextual) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-slate-100 border-b border-slate-100">
-         <div className="bg-white p-3 text-center">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Active</p>
-            <p className="text-base font-bold text-slate-900">{data.followUp.length}</p>
+      {/* Light Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100 border-b border-slate-100">
+         <div className="bg-white p-5 text-center">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Active Logs</p>
+            <p className="text-xl font-bold text-slate-900">{stats.active}</p>
          </div>
-         <div className="bg-white p-3 text-center border-l-px">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Overdue</p>
-            <p className="text-base font-bold text-red-500">
-               {data.followUp.filter(l => isOverdue(l.nextFollowUp)).length + 
-                data.converted.filter(l => isOverdue(l.deadline) && l.deliveryStatus !== 'completed').length}
-            </p>
+         <div className="bg-white p-5 text-center">
+            <p className="text-[9px] font-bold text-rose-500 uppercase tracking-widest mb-1.5">Attention</p>
+            <p className="text-xl font-bold text-rose-500">{stats.attention}</p>
          </div>
-         <div className="bg-white p-3 text-center border-l-px">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Success</p>
-            <p className="text-base font-bold text-emerald-500">{data.converted.length}</p>
+         <div className="bg-white p-5 text-center">
+            <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mb-1.5">Success Rate</p>
+            <p className="text-xl font-bold text-emerald-500">{stats.success}</p>
          </div>
-         <div className="bg-white p-3 text-center border-l-px">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Revenue</p>
-            <p className="text-base font-bold text-brand-primary">₹{data.converted.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0).toLocaleString()}</p>
+         <div className="bg-white p-5 text-center">
+            <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest mb-1.5">Total Revenue</p>
+            <p className="text-xl font-bold text-indigo-600">₹{stats.revenue.toLocaleString()}</p>
          </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto pb-4">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50/50 text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100">
-              <th className="px-6 py-4">Lead ID</th>
-              <th className="px-6 py-4">Client Detail</th>
-              <th className="px-6 py-4">Requirement</th>
-              <th className="px-6 py-4">{activeTab === 'follow-up' ? 'Follow-up Date' : 'Assigned To'}</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+            <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-slate-50/30">
+              <th className="px-8 py-5 border-b border-slate-100">Lead ID</th>
+              <th className="px-8 py-5 border-b border-slate-100">Client Profile</th>
+              <th className="px-8 py-5 border-b border-slate-100">Project Scope</th>
+              <th className="px-8 py-5 border-b border-slate-100">{activeTab === 'follow-up' ? 'Next Action' : 'Closed Date'}</th>
+              <th className="px-8 py-5 border-b border-slate-100 text-right">Operations</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-50/60">
             {loading ? (
                <tr>
                   <td colSpan="5" className="py-16 text-center">
@@ -193,7 +202,7 @@ const PersonalPipeline = () => {
                   </td>
                   <td className="px-6 py-4">
                       {activeTab === 'follow-up' ? (
-                         <div className={`${isOverdue(lead.nextFollowUp) ? 'text-red-600 bg-red-50' : isToday(lead.nextFollowUp) ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-100'} px-2.5 py-1 rounded-lg inline-block text-[10px] font-bold uppercase tracking-wider border border-transparent group-hover:border-current transition-all`}>
+                         <div className={`${isOverdue(lead.nextFollowUp) ? 'text-red-600 bg-red-50' : isToday(lead.nextFollowUp) ? 'text-amber-600 bg-amber-50' : 'text-slate-600 bg-slate-100'} px-2.5 py-1 rounded-3xl inline-block text-[10px] font-bold uppercase tracking-wider border border-transparent group-hover:border-current transition-all`}>
                             {lead.nextFollowUp ? new Date(lead.nextFollowUp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Set Date'}
                          </div>
                       ) : (
@@ -213,7 +222,7 @@ const PersonalPipeline = () => {
                         {activeTab === 'follow-up' && (
                           <button 
                             onClick={() => handleQuickConvert(lead._id)}
-                            className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg transition-all shadow-sm"
+                            className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-3xl transition-all shadow-sm"
                             title="Mark as Converted"
                           >
                              <CheckCircle2 size={14} />
@@ -221,7 +230,7 @@ const PersonalPipeline = () => {
                         )}
                         <button 
                           onClick={(e) => { e.stopPropagation(); setSelectedLeadForNote(lead); }}
-                          className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm"
+                          className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-3xl transition-all shadow-sm"
                           title="Lead Credentials / Notes"
                         >
                            <NotebookPen size={14} />
@@ -229,7 +238,7 @@ const PersonalPipeline = () => {
                         {activeTab === 'converted' && (
                            <button 
                              onClick={(e) => { e.stopPropagation(); setSelectedLeadForPayment(lead); }}
-                             className="p-2 bg-pink-50 text-pink-600 hover:bg-pink-600 hover:text-white rounded-lg transition-all shadow-sm"
+                             className="p-2 bg-pink-50 text-pink-600 hover:bg-pink-600 hover:text-white rounded-3xl transition-all shadow-sm"
                              title="Payment Installments"
                            >
                               <Wallet size={14} />
@@ -238,14 +247,14 @@ const PersonalPipeline = () => {
                         <a 
                           href={`https://wa.me/91${lead.phone?.replace(/\D/g, '')}`} 
                           target="_blank" 
-                          className="p-2 bg-slate-100 text-slate-600 hover:bg-brand-primary hover:text-white rounded-lg transition-all shadow-sm"
+                          className="p-2 bg-slate-100 text-slate-600 hover:bg-brand-primary hover:text-white rounded-3xl transition-all shadow-sm"
                           title="Message Client"
                         >
                            <MessageSquare size={14} />
                         </a>
                         <a 
                           href={`tel:${lead.phone}`} 
-                          className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white rounded-lg transition-all shadow-sm"
+                          className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white rounded-3xl transition-all shadow-sm"
                           title="Call Client"
                         >
                            <Phone size={14} />

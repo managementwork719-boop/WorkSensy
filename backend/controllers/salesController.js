@@ -4,6 +4,7 @@ import Client from '../models/Client.js';
 import Company from '../models/Company.js';
 import * as xlsx from 'xlsx';
 import { recalculateClientStats } from './clientController.js';
+import { createActivityLog } from '../utils/logger.js';
 
 export const importLeads = async (req, res, next) => {
   try {
@@ -129,6 +130,12 @@ export const importLeads = async (req, res, next) => {
       status: 'success',
       message: `Successfully processed ${rawData.length} rows. Added: ${addedCount}, Skipped: ${skippedCount}`,
     });
+
+    createActivityLog(req, {
+      action: 'Import Leads',
+      module: 'Sales',
+      description: `Imported ${addedCount} leads from Excel file`
+    });
   } catch (err) {
     next(err);
   }
@@ -250,21 +257,27 @@ export const getMyLeads = async (req, res, next) => {
     const companyId = req.user.companyId;
     const name = req.user.name;
 
-    const followUp = await Lead.find({ 
-      companyId, 
-      convertedBy: name,
-      status: 'follow-up' 
-    }).sort({ nextFollowUp: 1 }).lean();
-
-    const converted = await Lead.find({ 
-      companyId, 
-      convertedBy: name,
-      status: 'converted' 
-    }).sort({ updatedAt: -1 }).lean();
+    const [followUp, converted, notConverted] = await Promise.all([
+      Lead.find({ 
+        companyId, 
+        convertedBy: name,
+        status: 'follow-up' 
+      }).select('-conversationLogs -paymentHistory').sort({ nextFollowUp: 1 }).lean(),
+      Lead.find({ 
+        companyId, 
+        convertedBy: name,
+        status: 'converted' 
+      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).lean(),
+      Lead.find({ 
+        companyId, 
+        convertedBy: name,
+        status: 'not-converted' 
+      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).lean(),
+    ]);
 
     res.status(200).json({
       status: 'success',
-      data: { followUp, converted }
+      data: { followUp, converted, notConverted }
     });
   } catch (err) {
     next(err);
@@ -273,7 +286,7 @@ export const getMyLeads = async (req, res, next) => {
 
 export const getMonthlyOverview = async (req, res, next) => {
   try {
-    const { month, page = 1, limit = 50, search = '', status = 'origin' } = req.query; // format YYYY-MM
+    const { month, page = 1, limit = 10, search = '', status = 'origin' } = req.query; // format YYYY-MM
     const companyId = req.user.companyId;
 
     let query = { month, companyId, status };
@@ -428,22 +441,12 @@ export const updateLead = async (req, res, next) => {
       updateData.clientId = client._id;
     }
 
-    // Logic for 'not-converted' cleanup
+    // Logic for 'not-converted' cleanup (REMOVED: We now keep the client profile for future re-engagement)
+    /* 
     if (updateData.status === 'not-converted' && lead.clientId) {
-      // Check if the client has any OTHER converted leads (i.e., are they an "Old Client"?)
-      const convertedCount = await Lead.countDocuments({
-        clientId: lead.clientId,
-        status: 'converted',
-        _id: { $ne: lead._id }, // Exclude current lead
-        companyId
-      });
-
-      if (convertedCount === 0) {
-        // No previous successful works found, auto-delete the client profile
-        await Client.findOneAndDelete({ _id: lead.clientId, companyId });
-        updateData.clientId = null; // Unlink the lead from the deleted client
-      }
+      ...
     }
+    */
 
     // Update the lead with new data
     Object.assign(lead, updateData);
@@ -452,6 +455,12 @@ export const updateLead = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { lead }
+    });
+
+    createActivityLog(req, {
+      action: 'Update Lead',
+      module: 'Sales',
+      description: `Updated lead details for ${lead.name} (${lead.leadId})${updateData.status && updateData.status !== lead.status ? ` - Status changed to ${updateData.status}` : ''}`
     });
   } catch (err) {
     next(err);
@@ -504,6 +513,12 @@ export const createLead = async (req, res, next) => {
     res.status(201).json({
       status: 'success',
       data: { lead }
+    });
+
+    createActivityLog(req, {
+      action: 'Create Lead',
+      module: 'Sales',
+      description: `Manually created new lead: ${lead.name} (${lead.leadId})`
     });
   } catch (err) {
     next(err);
@@ -587,7 +602,7 @@ export const getMemberLeads = async (req, res, next) => {
     const companyId = req.user.companyId;
     const { name } = req.params;
 
-    const [followUp, converted, monthlyStats] = await Promise.all([
+    const [followUp, converted, notConverted, monthlyStats] = await Promise.all([
       Lead.find({ 
         companyId, 
         convertedBy: name,
@@ -597,6 +612,11 @@ export const getMemberLeads = async (req, res, next) => {
         companyId, 
         convertedBy: name,
         status: 'converted' 
+      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).limit(10).lean(),
+      Lead.find({ 
+        companyId, 
+        convertedBy: name,
+        status: 'not-converted' 
       }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).limit(10).lean(),
       Lead.aggregate([
         { $match: { companyId, convertedBy: name, status: 'converted' } },
@@ -616,7 +636,7 @@ export const getMemberLeads = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { followUp, converted, monthlyStats }
+      data: { followUp, converted, notConverted, monthlyStats }
     });
   } catch (err) {
     next(err);
@@ -650,6 +670,12 @@ export const addLeadNote = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       data: { logs: lead.conversationLogs }
+    });
+
+    createActivityLog(req, {
+      action: 'Add Note',
+      module: 'Sales',
+      description: `Added a note to lead: ${lead.name}`
     });
   } catch (err) {
     next(err);
@@ -704,6 +730,12 @@ export const addLeadPayment = async (req, res, next) => {
         paymentStatus: lead.paymentStatus
       }
     });
+
+    createActivityLog(req, {
+      action: 'Receive Payment',
+      module: 'Sales',
+      description: `Received payment of ₹${amount} for lead: ${lead.name}`
+    });
   } catch (err) {
     next(err);
   }
@@ -716,6 +748,12 @@ export const deleteLead = async (req, res, next) => {
     res.status(204).json({
       status: 'success',
       data: null
+    });
+
+    createActivityLog(req, {
+      action: 'Delete Lead',
+      module: 'Sales',
+      description: `Deleted lead: ${lead.name} (${lead.leadId})`
     });
   } catch (err) {
     next(err);

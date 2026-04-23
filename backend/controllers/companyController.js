@@ -4,7 +4,10 @@ import sendEmail from '../utils/sendEmail.js';
 
 export const updateMyCompany = async (req, res, next) => {
   try {
-    const { themeColor, name, industry, website, address } = req.body;
+    const { 
+        themeColor, name, industry, website, logo, address, phone, businessEmail, bankDetails,
+        invoiceBranding, quotationBranding
+    } = req.body;
     
     // The company ID is stored in the user object from the protect middleware
     const companyId = req.user.companyId;
@@ -18,7 +21,10 @@ export const updateMyCompany = async (req, res, next) => {
 
     const updatedCompany = await Company.findByIdAndUpdate(
       companyId,
-      { themeColor, name, industry, website, address },
+      { 
+        themeColor, name, industry, website, logo, address, phone, businessEmail, bankDetails,
+        invoiceBranding, quotationBranding
+      },
       { returnDocument: 'after', runValidators: true }
     );
 

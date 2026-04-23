@@ -24,11 +24,11 @@ const upload = multer({ storage });
 
 router.use(protect);
 
-router.get('/dashboard', getSalesDashboard);
+router.get('/dashboard', restrictTo('admin', 'sales-manager', 'sales-team', 'super-admin'), getSalesDashboard);
 router.get('/overdue-projects', restrictTo('admin', 'sales-manager', 'super-admin'), getOverdueProjects);
-router.get('/my-leads', getMyLeads);
+router.get('/my-leads', restrictTo('admin', 'sales-manager', 'sales-team', 'super-admin'), getMyLeads);
 router.get('/member-leads/:name', restrictTo('admin', 'sales-manager', 'super-admin'), getMemberLeads);
-router.get('/monthly-overview', getMonthlyOverview);
+router.get('/monthly-overview', restrictTo('admin', 'sales-manager', 'sales-team', 'super-admin'), getMonthlyOverview);
 router.get('/team-stats', restrictTo('admin', 'sales-manager', 'super-admin'), getTeamStats);
 router.patch('/lead/:id', restrictTo('admin', 'sales-team', 'sales-manager', 'super-admin'), updateLead);
 router.post('/create-manual', restrictTo('admin', 'sales-team', 'sales-manager', 'super-admin'), createLead);

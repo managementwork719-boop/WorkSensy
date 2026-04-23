@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, IndianRupee, Calendar, CreditCard, User, History, Wallet, CheckCircle2 } from 'lucide-react';
+import PremiumSelect from './PremiumSelect';
 import API from '../api/axios';
 
 const PaymentHistoryModal = ({ lead, onClose, onPaymentAdded }) => {
@@ -149,17 +150,18 @@ const PaymentHistoryModal = ({ lead, onClose, onPaymentAdded }) => {
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Method</label>
                   <div className="relative">
-                    <CreditCard size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
-                    <select 
+                    <CreditCard size={12} className="absolute left-2.5 top-3 z-10 text-slate-400" />
+                    <PremiumSelect 
                       value={formData.method}
-                      onChange={(e) => setFormData({...formData, method: e.target.value})}
-                      className="w-full pl-7 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Bank Transfer">Bank</option>
-                      <option value="Other">Other</option>
-                    </select>
+                      onChange={(val) => setFormData({...formData, method: val})}
+                      options={[
+                        { label: 'Cash', value: 'Cash' },
+                        { label: 'UPI', value: 'UPI' },
+                        { label: 'Bank', value: 'Bank Transfer' },
+                        { label: 'Other', value: 'Other' }
+                      ]}
+                      className="pl-5"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1">

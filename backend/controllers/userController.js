@@ -3,6 +3,7 @@ import Company from '../models/Company.js';
 import sendEmail from '../utils/sendEmail.js';
 import crypto from 'crypto';
 import { decrypt } from '../utils/encryption.js';
+import { createActivityLog } from '../utils/logger.js';
 
 export const createUser = async (req, res, next) => {
   try {
@@ -80,8 +81,13 @@ export const createUser = async (req, res, next) => {
       status: 'success',
       data: {
         user: newUser,
-        // message: 'User created and onboarding email sent'
       },
+    });
+
+    createActivityLog(req, {
+      action: 'Create Member',
+      module: 'Team',
+      description: `Created new team member: ${newUser.name} with role ${newUser.role}`
     });
   } catch (err) {
     if (err.code === 11000) {
@@ -148,6 +154,12 @@ export const updateUser = async (req, res, next) => {
       status: 'success',
       data: { user },
     });
+
+    createActivityLog(req, {
+      action: 'Update Member',
+      module: 'Team',
+      description: `Updated member details for ${user.name}`
+    });
   } catch (err) {
     if (err.code === 11000) {
       return res.status(400).json({ message: 'Email already exists' });
@@ -171,6 +183,12 @@ export const deleteUser = async (req, res, next) => {
     res.status(204).json({
       status: 'success',
       data: null,
+    });
+
+    createActivityLog(req, {
+      action: 'Delete Member',
+      module: 'Team',
+      description: `Deleted team member: ${user.name}`
     });
   } catch (err) {
     next(err);
