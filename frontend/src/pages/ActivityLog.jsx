@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
-import axios from 'axios';
+import API from '../api/axios';
 import { 
   History, Search, ChevronLeft, ChevronRight, Calendar, User, Shield, Activity, 
   Globe, CheckCircle2, XCircle, CreditCard, Target, Users, RefreshCw, BarChart3, 
@@ -109,7 +109,7 @@ const ActivityLog = () => {
     try {
       if (!isRefresh) setLoading(true);
       const params = { page, limit: 14, search: debouncedSearch.current, ...filters };
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/activity-logs`, { params, withCredentials: true });
+      const res = await API.get('/activity-logs', { params, withCredentials: true });
       setLogs(res.data.data.logs);
       setTotal(res.data.total);
       setTotalPages(res.data.data.pagination.totalPages);
@@ -123,7 +123,7 @@ const ActivityLog = () => {
   const fetchInsights = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/activity-logs/insights`, { withCredentials: true });
+      const res = await API.get('/activity-logs/insights', { withCredentials: true });
       setInsights(res.data.data);
     } catch (err) {
       console.error(err);
@@ -149,7 +149,7 @@ const ActivityLog = () => {
   const handleExport = async () => {
     try {
       const queryParams = new URLSearchParams({ search: debouncedSearch.current, ...filters });
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/activity-logs/export?${queryParams}`, {
+      const response = await API.get(`/activity-logs/export?${queryParams}`, {
         withCredentials: true,
         responseType: 'blob'
       });
