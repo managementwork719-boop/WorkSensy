@@ -262,17 +262,17 @@ export const getMyLeads = async (req, res, next) => {
         companyId, 
         convertedBy: name,
         status: 'follow-up' 
-      }).select('-conversationLogs -paymentHistory').sort({ nextFollowUp: 1 }).lean(),
+      }).select('-paymentHistory').sort({ nextFollowUp: 1 }).lean(),
       Lead.find({ 
         companyId, 
         convertedBy: name,
         status: 'converted' 
-      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).lean(),
+      }).select('-paymentHistory').sort({ updatedAt: -1 }).lean(),
       Lead.find({ 
         companyId, 
         convertedBy: name,
         status: 'not-converted' 
-      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).lean(),
+      }).select('-paymentHistory').sort({ updatedAt: -1 }).lean(),
     ]);
 
     res.status(200).json({
@@ -370,7 +370,7 @@ export const getMonthlyOverview = async (req, res, next) => {
 
     // Paginated leads fetch
     const leadsPromise = Lead.find(query)
-      .select('-conversationLogs -paymentHistory')
+      .select('-paymentHistory')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -607,17 +607,17 @@ export const getMemberLeads = async (req, res, next) => {
         companyId, 
         convertedBy: name,
         status: 'follow-up' 
-      }).select('-conversationLogs -paymentHistory').sort({ nextFollowUp: 1 }).lean(),
+      }).select('-paymentHistory').sort({ nextFollowUp: 1 }).lean(),
       Lead.find({ 
         companyId, 
         convertedBy: name,
         status: 'converted' 
-      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).limit(10).lean(),
+      }).select('-paymentHistory').sort({ updatedAt: -1 }).limit(10).lean(),
       Lead.find({ 
         companyId, 
         convertedBy: name,
         status: 'not-converted' 
-      }).select('-conversationLogs -paymentHistory').sort({ updatedAt: -1 }).limit(10).lean(),
+      }).select('-paymentHistory').sort({ updatedAt: -1 }).limit(10).lean(),
       Lead.aggregate([
         { $match: { companyId, convertedBy: name, status: 'converted' } },
         {
