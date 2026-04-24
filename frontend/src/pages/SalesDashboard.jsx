@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import LeadConversationModal from '../components/LeadConversationModal';
 import SalesAnalytics from '../components/SalesAnalytics';
 import { 
@@ -168,21 +169,45 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
   const { user, fetchTeamStats } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
+  const queryClient = useQueryClient();
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberLeads, setMemberLeads] = useState({ followUp: [], converted: [], monthlyStats: [] });
   const [memberLeadsLoading, setMemberLeadsLoading] = useState(false);
   const [selectedLeadForNote, setSelectedLeadForNote] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-  const [team, setTeam] = useState([]);
-  const [teamLoading, setTeamLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
-  const [overdueProjects, setOverdueProjects] = useState([]);
-  const [overdueLoading, setOverdueLoading] = useState(false);
+
+  // TanStack Query for Data Fetching & Caching
+  const { data: stats, isLoading: loading, refetch: fetchStats } = useQuery({
+    queryKey: ['salesStats', selectedYear],
+    queryFn: async () => {
+      const res = await API.get(`/sales/dashboard?year=${selectedYear}`);
+      return res.data.data;
+    }
+  });
+
+  const { data: teamData, isLoading: teamLoading } = useQuery({
+    queryKey: ['teamStats', selectedYear],
+    queryFn: async () => {
+      return await fetchTeamStats(selectedYear);
+    },
+    enabled: user?.role !== 'sales-team'
+  });
+  const team = teamData || [];
+
+  const { data: overdueData, isLoading: overdueLoading } = useQuery({
+    queryKey: ['overdueProjects'],
+    queryFn: async () => {
+      const res = await API.get('/sales/overdue-projects');
+      return res.data.data.overdueProjects;
+    },
+    enabled: ['sales-manager', 'admin', 'super-admin'].includes(user?.role)
+  });
+  const overdueProjects = overdueData || [];
+
   
   // Manual Entry State
   const [showManual, setShowManual] = useState(false);
@@ -209,25 +234,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
   }, [team]);
 
 
-  useEffect(() => {
-    fetchStats();
-    if (user?.role !== 'sales-team') {
-      fetchTeam();
-      fetchOverdueProjects();
-    }
-  }, [selectedYear]);
 
-  const fetchTeam = async () => {
-    setTeamLoading(true);
-    try {
-      const stats = await fetchTeamStats(selectedYear);
-      setTeam(stats);
-    } catch (err) {
-      console.error('Failed to fetch sales team performance');
-    } finally {
-      setTeamLoading(false);
-    }
-  };
 
   const handleMemberClick = React.useCallback(async (member) => {
     setSelectedMember(member);
@@ -250,29 +257,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
     navigate(`/sales/month/${monthId}`);
   }, [navigate]);
 
-  const fetchStats = async () => {
-    try {
-      const res = await API.get(`/sales/dashboard?year=${selectedYear}`);
-      setStats(res.data.data);
-    } catch (err) {
-      console.error('Failed to fetch sales stats');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchOverdueProjects = async () => {
-    if (!['sales-manager', 'admin', 'super-admin'].includes(user?.role)) return;
-    setOverdueLoading(true);
-    try {
-      const res = await API.get('/sales/overdue-projects');
-      setOverdueProjects(res.data.data.overdueProjects);
-    } catch (err) {
-      console.error('Failed to fetch overdue projects');
-    } finally {
-      setOverdueLoading(false);
-    }
-  };
 
   const handleUpload = async (e) => {
     e.preventDefault();

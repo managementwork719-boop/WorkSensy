@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API from '../api/axios';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { 
   Users, 
   UserPlus, 
@@ -25,8 +26,6 @@ import { Link } from 'react-router-dom';
 
 const Team = () => {
   const { user } = useAuth();
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -36,7 +35,22 @@ const Team = () => {
 
   // Pagination State
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ totalPages: 1, totalUsers: 0 });
+
+  const queryClient = useQueryClient();
+  const queryKey = ['teamMembers', page, filter];
+
+  const { data: queryData, isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await API.get(`/users/company-users?page=${page}&limit=8&role=${filter === 'all' ? '' : filter}`);
+      return res.data;
+    },
+    placeholderData: keepPreviousData
+  });
+
+  const members = queryData?.data?.users || [];
+  const pagination = queryData?.pagination || { totalPages: 1, totalUsers: 0 };
+  const loading = isLoading;
 
   // Form State
   const [formData, setFormData] = useState({
@@ -50,9 +64,8 @@ const Team = () => {
   const [previewUrl, setPreviewUrl] = useState(null);
 
   useEffect(() => {
-    fetchTeam();
     checkSmtp();
-  }, [page, filter]); // Re-fetch on page or filter change
+  }, []);
 
   const checkSmtp = async () => {
     try {
@@ -65,21 +78,6 @@ const Team = () => {
         }
     } catch (err) {
         console.error('Failed to check SMTP status');
-    }
-  };
-
-  const fetchTeam = async () => {
-    try {
-      setLoading(true);
-      const res = await API.get(`/users/company-users?page=${page}&limit=8&role=${filter === 'all' ? '' : filter}`);
-      setMembers(res.data.data.users);
-      if (res.data.pagination) {
-        setPagination(res.data.pagination);
-      }
-    } catch (err) {
-      console.error('Failed to fetch team members');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -145,7 +143,7 @@ const Team = () => {
         await API.post('/users', data);
       }
       setShowModal(false);
-      fetchTeam();
+      queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
     } catch (err) {
       alert(err.response?.data?.message || 'Operation failed');
     } finally {
@@ -157,7 +155,7 @@ const Team = () => {
     if (window.confirm('Are you sure you want to remove this staff member?')) {
       try {
         await API.delete(`/users/${id}`);
-        fetchTeam();
+        queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
       } catch (err) {
         alert('Failed to delete user');
       }

@@ -10,10 +10,11 @@ export default defineConfig({
   ],
   build: {
     target: "esnext",
+    cssCodeSplit: true,
     rollupOptions: {
-      output: {
-      }
-    }
+      output: {}
+    },
+    chunkSizeWarningLimit: 1000,
   },
   esbuild: {
     drop: ['console', 'debugger'],

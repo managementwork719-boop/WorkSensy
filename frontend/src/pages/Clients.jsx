@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API from '../api/axios';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useDebounce } from '../hooks/useDebounce';
 import { 
   Users, 
   Search, 
@@ -94,34 +96,32 @@ const EditClientModal = ({ client, onClose, onUpdate }) => {
 // ClientProfileModal has been moved to src/components/ClientProfileModal.jsx
 
 const Clients = () => {
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 500);
   const [selectedClientId, setSelectedClientId] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
   
   // Pagination State
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ totalPages: 1, totalClients: 0 });
 
-  useEffect(() => {
-    fetchClients();
-  }, [page, search]); // Re-fetch on page or search change
+  const queryClient = useQueryClient();
+  const queryKey = ['clients', page, debouncedSearch];
 
-  const fetchClients = async () => {
-    try {
-      setLoading(true);
-      const res = await API.get(`/clients/all?page=${page}&limit=8&search=${search}`);
-      setClients(res.data.data.clients);
-      if (res.data.pagination) {
-        setPagination(res.data.pagination);
-      }
-    } catch (err) {
-      console.error('Failed to fetch clients');
-    } finally {
-      setLoading(false);
-    }
+  const { data: queryData, isLoading: loading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await API.get(`/clients/all?page=${page}&limit=8&search=${debouncedSearch}`);
+      return res.data;
+    },
+    placeholderData: keepPreviousData
+  });
+
+  const clients = queryData?.data?.clients || [];
+  const pagination = queryData?.pagination || { totalPages: 1, totalClients: 0 };
+
+  const fetchClients = () => {
+    queryClient.invalidateQueries({ queryKey: ['clients'] });
   };
 
   const handleSync = async () => {

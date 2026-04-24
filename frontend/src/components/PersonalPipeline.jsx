@@ -30,54 +30,40 @@ const isOverdue = (dateString) => {
   return date < now;
 };
 
-const PersonalPipeline = () => {
+const PersonalPipeline = ({ data, loading, onUpdate }) => {
   const [activeTab, setActiveTab] = useState('follow-up');
-  const [data, setData] = useState({ followUp: [], converted: [] });
-  const [loading, setLoading] = useState(true);
   const [selectedLeadForNote, setSelectedLeadForNote] = useState(null);
   const [selectedLeadForPayment, setSelectedLeadForPayment] = useState(null);
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState(null);
-
-  useEffect(() => {
-    fetchMyLeads();
-  }, []);
-
-  const fetchMyLeads = async () => {
-    try {
-      const res = await API.get('/sales/my-leads');
-      setData(res.data.data);
-    } catch (err) {
-      console.error('Failed to fetch assigned leads');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleQuickConvert = async (leadId) => {
     if (!window.confirm('Mark this lead as Converted?')) return;
     try {
       await API.patch(`/sales/lead/${leadId}`, { status: 'converted' });
-      fetchMyLeads();
+      if (onUpdate) onUpdate();
     } catch (err) {
       alert('Failed to convert lead');
     }
   };
 
   const { currentLeads, stats } = React.useMemo(() => {
-    const leads = activeTab === 'follow-up' ? data.followUp : data.converted;
+    const fUp = data?.followUp || [];
+    const conv = data?.converted || [];
+
+    const leads = activeTab === 'follow-up' ? fUp : conv;
     
     const attentionCount = 
-      data.followUp.filter(l => isOverdue(l.nextFollowUp)).length + 
-      data.converted.filter(l => isOverdue(l.deadline) && l.deliveryStatus !== 'completed').length;
+      fUp.filter(l => isOverdue(l.nextFollowUp)).length + 
+      conv.filter(l => isOverdue(l.deadline) && l.deliveryStatus !== 'completed').length;
       
-    const totalRev = data.converted.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0);
+    const totalRev = conv.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0);
     
     return {
       currentLeads: leads,
       stats: {
-        active: data.followUp.length,
+        active: fUp.length,
         attention: attentionCount,
-        success: data.converted.length,
+        success: conv.length,
         revenue: totalRev
       }
     };
@@ -272,7 +258,7 @@ const PersonalPipeline = () => {
          <LeadConversationModal 
            lead={selectedLeadForNote} 
            onClose={() => setSelectedLeadForNote(null)} 
-           onNoteAdded={fetchMyLeads}
+           onNoteAdded={onUpdate}
          />
       )}
 
@@ -280,7 +266,7 @@ const PersonalPipeline = () => {
         <PaymentHistoryModal 
           lead={selectedLeadForPayment} 
           onClose={() => setSelectedLeadForPayment(null)} 
-          onPaymentAdded={fetchMyLeads}
+          onPaymentAdded={onUpdate}
         />
       )}
 

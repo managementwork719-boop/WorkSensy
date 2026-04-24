@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PersonalPipeline from '../components/PersonalPipeline';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import { 
   BarChart3, 
   Clock, 
@@ -29,6 +30,7 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import { Skeleton, AnalyticsSkeleton } from '../components/Skeleton';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -323,67 +325,144 @@ const PerformanceOverviewHub = React.memo(({ rawFollowUps, rawConverted, rawNotC
 
 const UserDashboard = () => {
   const { user } = useAuth();
-  const [counts, setCounts] = useState({ 
-    priority: 0, 
-    total: 0, 
-    success: 0, 
-    revenue: 0,
-    thisMonthTotal: 0,
-    thisMonthSuccess: 0,
-    thisMonthRevenue: 0,
-    stageData: [],
-    pipelineTrend: [],
-    upcomingFollowUps: []
+  const { data: queryData, isLoading: loading, refetch } = useQuery({
+    queryKey: ['myLeads'],
+    queryFn: async () => {
+      const res = await API.get('/sales/my-leads');
+      return res.data.data;
+    }
   });
 
-  const [rawLeads, setRawLeads] = React.useState({ followUps: [], converted: [], notConverted: [] });
+  const rawLeads = React.useMemo(() => ({
+    followUp: queryData?.followUp || [],
+    converted: queryData?.converted || [],
+    notConverted: queryData?.notConverted || []
+  }), [queryData]);
 
-  useEffect(() => {
-    fetchCounts();
-  }, []);
+  const counts = React.useMemo(() => {
+    const followUp = rawLeads.followUp;
+    const converted = rawLeads.converted;
+    
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const now = new Date();
+    
+    const priority = [
+      ...followUp.filter(l => l.nextFollowUp && new Date(l.nextFollowUp) < now),
+      ...converted.filter(l => l.deadline && new Date(l.deadline) < now && l.deliveryStatus !== 'completed')
+    ].length;
 
-  const fetchCounts = async () => {
-    try {
-      const res = await API.get('/sales/my-leads');
-      const followUps = res.data.data.followUp || [];
-      const converted = res.data.data.converted || [];
-      const notConverted = res.data.data.notConverted || [];
-      
-      const today = new Date();
-      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const now = new Date();
-      const priority = [
-        ...followUps.filter(l => l.nextFollowUp && new Date(l.nextFollowUp) < now),
-        ...converted.filter(l => l.deadline && new Date(l.deadline) < now && l.deliveryStatus !== 'completed')
-      ].length;
+    const revenue = converted.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0);
+    const thisMonthTotalCount = followUp.filter(l => new Date(l.createdAt) >= startOfMonth).length;
+    const thisMonthSuccessArr = converted.filter(l => new Date(l.updatedAt || l.createdAt) >= startOfMonth);
+    const thisMonthRevenueVal = thisMonthSuccessArr.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0);
 
-      const revenue = converted.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0);
-      const thisMonthTotalCount = followUps.filter(l => new Date(l.createdAt) >= startOfMonth).length;
-      const thisMonthSuccessArr = converted.filter(l => new Date(l.updatedAt || l.createdAt) >= startOfMonth);
-      const thisMonthRevenueVal = thisMonthSuccessArr.reduce((acc, l) => acc + (l.totalAmount || l.budget || 0), 0);
-      
-      // === STAGE / TREND / UPCOMING now computed inside PerformanceOverviewHub (client-side, month-filtered) ===
-
-      setRawLeads({ followUps, converted, notConverted });
-      setCounts({ 
-         priority, 
-         total: followUps.length,
-         success: converted.length,
-         revenue,
-         thisMonthTotal: thisMonthTotalCount,
-         thisMonthSuccess: thisMonthSuccessArr.length,
-         thisMonthRevenue: thisMonthRevenueVal,
-      });
-    } catch (err) {
-      console.error("Dashboard count fetch failed", err);
-    }
-  };
+    return {
+      priority,
+      total: followUp.length,
+      success: converted.length,
+      revenue,
+      thisMonthTotal: thisMonthTotalCount,
+      thisMonthSuccess: thisMonthSuccessArr.length,
+      thisMonthRevenue: thisMonthRevenueVal,
+    };
+  }, [rawLeads]);
 
   const todayLabel = new Date().toLocaleDateString('en-GB', { 
     weekday: 'long', 
     day: 'numeric', 
     month: 'long' 
   });
+
+  if (loading) return (
+     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in duration-500 pb-10">
+        {/* Welcome Header Skeleton */}
+        <div className="bg-white/80 p-6 rounded-2xl border border-slate-200 shadow-sm">
+           <div className="flex items-center gap-4">
+              <Skeleton className="h-16 w-16 rounded-2xl" />
+              <div className="space-y-3 flex-1">
+                 <Skeleton className="h-4 w-32" />
+                 <Skeleton className="h-8 w-2/3 max-w-md" />
+              </div>
+           </div>
+        </div>
+        
+        {/* KPI Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+           {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+                 <div className="flex items-center gap-4 flex-1">
+                    <Skeleton className="h-12 w-12 rounded-2xl" />
+                    <div className="space-y-2 flex-1">
+                       <Skeleton className="h-3 w-1/2" />
+                       <Skeleton className="h-6 w-3/4" />
+                    </div>
+                 </div>
+                 <Skeleton className="h-8 w-16 opacity-20" />
+              </div>
+           ))}
+        </div>
+
+        {/* Analytics Hub Skeleton */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+           <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-8 w-24 rounded-xl" />
+           </div>
+           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
+              <div className="lg:col-span-3 space-y-4">
+                 <Skeleton className="h-4 w-24" />
+                 <div className="flex items-center gap-4">
+                    <Skeleton className="h-[120px] w-[120px] rounded-full" />
+                    <div className="flex-1 space-y-2">
+                       <Skeleton className="h-3 w-full" />
+                       <Skeleton className="h-3 w-full" />
+                       <Skeleton className="h-3 w-full" />
+                    </div>
+                 </div>
+              </div>
+              <div className="lg:col-span-5 space-y-4">
+                 <Skeleton className="h-4 w-32" />
+                 <Skeleton className="h-[140px] w-full rounded-xl" />
+              </div>
+              <div className="lg:col-span-4 space-y-4">
+                 <Skeleton className="h-4 w-32" />
+                 <div className="space-y-3">
+                    {[...Array(4)].map((_, j) => <Skeleton key={j} className="h-12 w-full rounded-xl" />)}
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        {/* Pipeline Table Skeleton */}
+        <div className="space-y-4">
+           <div className="flex items-center gap-2">
+              <div className="w-1.5 h-6 bg-slate-200 rounded-full" />
+              <Skeleton className="h-6 w-48" />
+           </div>
+           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-100">
+                 <Skeleton className="h-10 w-full rounded-xl" />
+              </div>
+              <div className="p-6 space-y-4">
+                 {[...Array(5)].map((_, k) => (
+                    <div key={k} className="flex justify-between items-center py-2">
+                       <div className="flex items-center gap-4 flex-1">
+                          <Skeleton className="h-10 w-10 rounded-xl" />
+                          <div className="space-y-2 flex-1">
+                             <Skeleton className="h-4 w-1/3" />
+                             <Skeleton className="h-3 w-1/4 opacity-50" />
+                          </div>
+                       </div>
+                       <Skeleton className="h-8 w-24 rounded-lg" />
+                       <Skeleton className="h-8 w-16 rounded-lg ml-8" />
+                    </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+     </div>
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in duration-500 pb-10">
@@ -523,7 +602,7 @@ const UserDashboard = () => {
       {/* 💎 SALES PIPELINE OVERVIEW (Exclusive for Sales Team) */}
       {user?.role === 'sales-team' && (
          <PerformanceOverviewHub 
-            rawFollowUps={rawLeads.followUps}
+            rawFollowUps={rawLeads.followUp}
             rawConverted={rawLeads.converted}
             rawNotConverted={rawLeads.notConverted}
             counts={counts}
@@ -539,7 +618,11 @@ const UserDashboard = () => {
                   <h2 className="text-lg font-bold text-slate-900 tracking-tight uppercase">Sales Pipeline Operation</h2>
                </div>
             </div>
-            <PersonalPipeline />
+            <PersonalPipeline 
+              data={rawLeads} 
+              loading={loading} 
+              onUpdate={refetch} 
+            />
          </div>
       </div>
 

@@ -3,6 +3,7 @@ import { useToast } from '../context/ToastContext';
 
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../api/axios';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { 
   ArrowLeft, 
   TrendingUp, 
@@ -99,8 +100,6 @@ const MonthlyOverview = () => {
   const { showToast } = useToast();
 
   
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('origin');
   const [teamMembers, setTeamMembers] = useState(cachedTeam || []);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,10 +107,29 @@ const MonthlyOverview = () => {
 
   // Pagination State
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ totalPages: 1, totalLeads: 0 });
-  const [tableLoading, setTableLoading] = useState(false);
-
   const [selectedLeads, setSelectedLeads] = useState([]);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  
+  const queryClient = useQueryClient();
+  const queryKey = ['monthlyOverview', monthId, page, debouncedSearch, activeTab];
+
+  const { data: queryData, isLoading, isFetching, refetch: fetchMonthDetails } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await API.get(`/sales/monthly-overview?month=${monthId}&page=${page}&search=${debouncedSearch}&status=${activeTab}`);
+      return res.data.data;
+    }
+  });
+
+  useEffect(() => {
+    if (queryData && !hasLoadedOnce) setHasLoadedOnce(true);
+  }, [queryData]);
+
+  const data = queryData || null;
+  const loading = isLoading;
+  const tableLoading = isLoading; 
+  const pagination = queryData?.pagination || { totalPages: 1, totalLeads: 0 };
+
   const [editModalData, setEditModalData] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   const [selectedLeadForNote, setSelectedLeadForNote] = useState(null);
@@ -122,79 +140,42 @@ const MonthlyOverview = () => {
   const [showManual, setShowManual] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
   const [manualForm, setManualForm] = useState({
-    leadId: '',
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
-    source: '',
-    campaign: '',
-    requirement: '',
-    budget: '',
-    location: ''
+    leadId: '', name: '', phone: '', email: '', address: '', source: '', 
+    campaign: '', requirement: '', budget: '', location: ''
   });
 
   useEffect(() => {
-    // Initial load: Fetch stats + first page
-    fetchMonthDetails(1);
-    
-    // Use cached team if available, otherwise fetch
     if (!cachedTeam) {
       fetchTeam().then(setTeamMembers);
     }
-  }, [monthId]);
-
-  // Fetch data when page or search changes
-  useEffect(() => {
-    if (!loading) {
-       fetchMonthDetails(page, debouncedSearch, activeTab);
-    }
-  }, [page, debouncedSearch, activeTab]);
-
-  const fetchMonthDetails = async (pageNum = 1, searchStr = searchQuery, status = activeTab) => {
-    setTableLoading(true);
-    // Clear current leads to prevent ghosting/flickering
-    setData(prev => ({ ...prev, leads: [] }));
-    
-    try {
-      const res = await API.get(`/sales/monthly-overview?month=${monthId}&page=${pageNum}&search=${searchStr}&status=${status}`);
-      setData(res.data.data);
-      setPagination(res.data.data.pagination);
-    } catch (err) {
-      console.error('Failed to fetch monthly details');
-    } finally {
-      setLoading(false);
-      setTableLoading(false);
-    }
-  };
+  }, []);
 
   // Optimistic Status Update
   const handleOptimisticUpdate = async (id, updates) => {
-    const previousData = { ...data };
+    const previousData = queryClient.getQueryData(queryKey);
+    if (!previousData) return;
     
     // 1. Check if the status has changed to something other than the current tab
     const statusChanged = updates.status && updates.status !== activeTab;
 
-    // 2. Optimistically update local state
+    // 2. Optimistically update local cache
     let updatedLeads;
     if (statusChanged) {
-        // If status changed, remove it from the current view list
-        updatedLeads = data.leads.filter(l => l._id !== id);
+        updatedLeads = previousData.leads.filter(l => l._id !== id);
     } else {
-        // Otherwise just update the specific fields (owner, budget, etc.)
-        updatedLeads = data.leads.map(l => 
+        updatedLeads = previousData.leads.map(l => 
           l._id === id ? { ...l, ...updates } : l
         );
     }
     
-    setData({ ...data, leads: updatedLeads });
+    queryClient.setQueryData(queryKey, { ...previousData, leads: updatedLeads });
 
     try {
       // 3. Perform background API call
       await API.patch(`/sales/lead/${id}`, updates);
     } catch (err) {
       // 4. Rollback on failure
-      setData(previousData);
+      queryClient.setQueryData(queryKey, previousData);
       alert(err.response?.data?.message || 'Update failed. Reverting changes.');
     }
   };
@@ -258,7 +239,10 @@ const MonthlyOverview = () => {
     );
   };
 
-  if (loading) return (
+  // Only show the FULL PAGE skeleton on the very first load of the entire component
+  const isInitialLoad = isLoading && !hasLoadedOnce;
+
+  if (isInitialLoad) return (
     <div className="space-y-6 max-w-[1400px] mx-auto animate-in fade-in duration-500 pb-10">
       <div className="flex items-center gap-4 mb-2">
          <Skeleton className="h-10 w-10 circle" />
@@ -579,8 +563,22 @@ const MonthlyOverview = () => {
                     )}
                   </tr>
                 </thead>
-                <tbody>
-                  {!tableLoading && filteredLeads.map((lead, idx) => {
+                <tbody className={`transition-all duration-500 ${isFetching && !isLoading ? 'opacity-40 pointer-events-none grayscale-[0.5]' : 'opacity-100'}`}>
+                  {tableLoading ? (
+                    [...Array(8)].map((_, i) => (
+                      <tr key={i} className="animate-pulse border-b border-slate-50">
+                        <td colSpan="20" className="px-6 py-6">
+                           <div className="flex gap-4 items-center">
+                              <div className="w-10 h-10 bg-slate-100 rounded-xl" />
+                              <div className="h-4 w-1/4 bg-slate-100 rounded-lg" />
+                              <div className="h-4 w-1/6 bg-slate-100 rounded-lg" />
+                              <div className="h-4 w-1/6 bg-slate-100 rounded-lg" />
+                              <div className="h-4 w-1/6 bg-slate-100 rounded-lg ml-auto" />
+                           </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : filteredLeads.map((lead, idx) => {
                     const isSelected = selectedLeads.includes(lead._id);
                     const isItemOverdue = (activeTab === 'converted' && isOverdue(lead.deadline) && lead.deliveryStatus !== 'completed') || 
                                          (activeTab === 'follow-up' && isOverdue(lead.nextFollowUp));
@@ -1006,26 +1004,16 @@ const MonthlyOverview = () => {
                       </tr>
                      );
                   })}
-                  {filteredLeads.length === 0 && !tableLoading && (
+                  {filteredLeads.length === 0 && !isFetching && !isLoading && (
                     <tr>
-                      <td colSpan="10" className="py-20 text-center font-bold text-slate-300 text-sm">No data available for this pipeline stage.</td>
+                      <td colSpan="20" className="py-20 text-center font-bold text-slate-300 text-sm">No data available for this pipeline stage.</td>
                     </tr>
                   )}
                 </tbody>
                </table>
-               {tableLoading && (
-                 <div className="space-y-3 mt-3 px-1">
-                    {[1,2,3,4,5].map(i => (
-                      <div key={i} className="flex gap-4 p-5 items-center bg-white rounded-2xl border border-slate-100 shadow-sm animate-pulse">
-                        <div className="flex gap-2 items-center w-1/4">
-                           <div className="w-2 h-2 rounded-full bg-slate-200"></div>
-                           <div className="h-4 w-20 bg-slate-100 rounded-lg"></div>
-                        </div>
-                        <div className="h-4 w-1/4 bg-slate-100 rounded-lg"></div>
-                        <div className="h-4 w-1/4 bg-slate-100 rounded-lg"></div>
-                        <div className="h-4 w-1/4 bg-slate-100 rounded-lg text-right"></div>
-                      </div>
-                    ))}
+               {isFetching && (
+                 <div className="absolute top-0 left-0 right-0 h-1 z-20 overflow-hidden">
+                    <div className="h-full bg-brand-primary animate-progress-fast shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
                  </div>
                )}
             </div>
