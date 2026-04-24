@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import LeadConversationModal from '../components/LeadConversationModal';
 import SalesAnalytics from '../components/SalesAnalytics';
 import { 
@@ -165,6 +166,7 @@ const MonthCard = ({ month, data, onClick, user }) => {
 
 const SalesDashboard = ({ mode = 'dashboard' }) => {
   const { user, fetchTeamStats } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -290,7 +292,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
       setFile(null);
       fetchStats();
     } catch (err) {
-      alert(err.response?.data?.message || 'Upload failed');
+      showToast(err.response?.data?.message || 'Upload failed', 'error');
     } finally {
       setUploadLoading(false);
     }
@@ -308,7 +310,7 @@ const SalesDashboard = ({ mode = 'dashboard' }) => {
       });
       fetchStats();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to add lead');
+      showToast(err.response?.data?.message || 'Failed to add lead', 'error');
     } finally {
       setManualLoading(false);
     }

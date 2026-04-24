@@ -24,12 +24,11 @@ export const ToastProvider = ({ children }) => {
         
         setToasts((prev) => [...prev, newToast]);
 
-        // Auto-remove success and info toasts
-        if (type !== 'error') {
-            setTimeout(() => {
-                removeToast(id);
-            }, 4000);
-        }
+        // Auto-remove all toasts
+        const timeout = type === 'error' ? 6000 : 4000;
+        setTimeout(() => {
+            removeToast(id);
+        }, timeout);
     }, [removeToast]);
 
     return (

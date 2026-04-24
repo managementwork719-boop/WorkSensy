@@ -8,12 +8,25 @@ export const getAllClients = async (req, res, next) => {
     const { page = 1, limit = 8, search = '' } = req.query;
     const companyId = req.user.companyId;
     
-    const query = { companyId };
+    let query = { companyId };
+    
+    // If sales-team, filter clients by leads they have handled
+    if (req.user.role === 'sales-team') {
+      const handledClientIds = await Lead.find({ 
+        companyId, 
+        convertedBy: req.user.name,
+        clientId: { $exists: true, $ne: null }
+      }).distinct('clientId');
+      
+      query._id = { $in: handledClientIds };
+    }
+
     if (search) {
+      const searchRegex = new RegExp(search, 'i');
       query.$or = [
-        { name: new RegExp(search, 'i') },
-        { phone: new RegExp(search, 'i') },
-        { email: new RegExp(search, 'i') }
+        { name: searchRegex },
+        { phone: searchRegex },
+        { email: searchRegex }
       ];
     }
 

@@ -24,6 +24,20 @@ export const importLeads = async (req, res, next) => {
     const companyId = req.user.companyId;
     const currentMonth = new Date().toISOString().slice(0, 7);
 
+    // Validate Mandatory Headers
+    if (rawData.length > 0) {
+      const firstRowKeys = Object.keys(rawData[0]).map(k => k.toLowerCase().trim());
+      const mandatoryFields = ['id', 'name', 'phone'];
+      const missingFields = mandatoryFields.filter(field => !firstRowKeys.includes(field));
+      
+      if (missingFields.length > 0) {
+        return res.status(400).json({ 
+          status: 'fail', 
+          message: `Invalid Excel format. Missing required columns: ${missingFields.join(', ')}` 
+        });
+      }
+    }
+
     // Prepare normalization and check for existing leads in one go
     const allLeadIds = rawData.map(row => {
       const keys = Object.keys(row);

@@ -7,7 +7,7 @@ const ToastContainer = ({ toasts, removeToast }) => {
             {toasts.map((toast) => (
                 <div 
                     key={toast.id}
-                    className="toast-glass group relative flex items-center gap-4 p-4 pr-10 rounded-2xl animate-toast-in cursor-default"
+                    className="toast-glass group relative flex items-center gap-4 p-4 pr-10 rounded-2xl animate-toast-in cursor-default overflow-hidden"
                 >
                     {/* Icon */}
                     <div className={`p-2.5 rounded-xl flex-shrink-0 ${
@@ -43,10 +43,10 @@ const ToastContainer = ({ toasts, removeToast }) => {
                     </button>
 
                     {/* Progress Bar (Visual Only) */}
-                    {toast.type !== 'error' && (
-                        <div className="absolute bottom-0 left-0 h-1 bg-current opacity-10 rounded-full transition-all duration-[4000ms] w-0" 
-                             style={{ animation: 'shimmer 4s linear forwards', width: '100%' }} />
-                    )}
+                    <div className="absolute bottom-0 left-0 h-1 bg-emerald-500 rounded-full animate-toast-progress" 
+                         style={{ 
+                            animationDuration: toast.type === 'error' ? '6s' : '4s'
+                         }} />
                 </div>
             ))}
         </div>
