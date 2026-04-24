@@ -50,7 +50,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
           <div className="w-8 h-8 bg-violet-600 rounded-xl flex items-center justify-center font-bold text-sm text-white shrink-0 shadow-lg shadow-violet-200">
             W
           </div>
-          {!isCollapsed && <span className="text-lg font-black tracking-tight text-slate-900 animate-in fade-in duration-300">WorkSensy</span>}
+          {!isCollapsed && <span className="text-lg font-bold tracking-tight text-slate-900 animate-in fade-in duration-300">WorkSensy</span>}
         </div>
         
         <button 
@@ -65,12 +65,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
       {!isCollapsed && (
         <div className="px-6 mt-4">
           {!user?.companyId && user?.role === 'super-admin' && (
-            <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-black">
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
               System Admin
             </p>
           )}
           {user?.companyId && (
-            <p className="text-[10px] text-violet-600 uppercase tracking-[0.2em] font-black truncate bg-violet-50 px-2 py-1 rounded-md border border-violet-100 inline-block max-w-full">
+            <p className="text-[10px] text-violet-600 uppercase tracking-wider font-bold truncate bg-violet-50 px-2 py-1 rounded-md border border-violet-100 inline-block max-w-full">
               {user.companyId.name}
             </p>
           )}
@@ -87,13 +87,13 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
                 `flex items-center ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-4'} py-3 rounded-2xl transition-all duration-300 group ${
                   isActive 
                   ? 'bg-violet-100 text-violet-700 font-bold' 
-                  : 'text-slate-500 hover:bg-violet-50/50 hover:text-violet-600'
+                  : 'text-slate-500 hover:bg-violet-50/50 hover:text-violet-600 font-medium'
                 }`
               }
               title={isCollapsed ? item.name : ''}
             >
               <item.icon size={19} className={`transition-transform duration-300 shrink-0 ${isCollapsed ? '' : 'group-hover:scale-110'}`} />
-              {!isCollapsed && <span className="text-[13px] font-black tracking-wide truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
+              {!isCollapsed && <span className="text-[13px] font-bold tracking-tight truncate animate-in slide-in-from-left-2 duration-300">{item.name}</span>}
             </NavLink>
         ))}
       </nav>
@@ -111,14 +111,14 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
           </div>
           {!isCollapsed && (
             <div className="overflow-hidden animate-in fade-in duration-300">
-              <p className="text-sm font-black text-slate-800 truncate leading-tight uppercase tracking-tight">{user?.name}</p>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mt-0.5">{user?.role === 'user' ? 'Member' : user?.role.replace('-', ' ')}</p>
+              <p className="text-sm font-bold text-slate-800 truncate leading-tight uppercase tracking-tight">{user?.name}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{user?.role === 'user' ? 'Member' : user?.role.replace('-', ' ')}</p>
             </div>
           )}
         </div>
         <button
           onClick={logout}
-          className={`flex items-center justify-center gap-2.5 ${isCollapsed ? 'w-12 h-12 rounded-2xl' : 'w-full px-5 py-3 rounded-2xl'} bg-violet-600 text-white shadow-lg shadow-violet-100 hover:bg-violet-700 hover:shadow-violet-200 transition-all duration-300 text-[11px] font-black uppercase tracking-widest active:scale-95`}
+          className={`flex items-center justify-center gap-2.5 ${isCollapsed ? 'w-12 h-12 rounded-2xl' : 'w-full px-5 py-3 rounded-2xl'} bg-violet-600 text-white shadow-lg shadow-violet-100 hover:bg-violet-700 hover:shadow-violet-200 transition-all duration-300 text-[11px] font-bold uppercase tracking-widest active:scale-95`}
           title="Logout System"
         >
           <LogOut size={16} />

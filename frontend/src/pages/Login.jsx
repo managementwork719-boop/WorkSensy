@@ -42,7 +42,7 @@ const Login = () => {
             <div className="w-10 h-10 bg-brand-primary/10 backdrop-blur-xl border border-white/10 rounded-xl flex items-center justify-center p-2 transition-all duration-500 group-hover:scale-110 shadow-[0_0_20px_rgba(99,102,241,0.3)]">
                <LayoutPanelLeft className="text-brand-primary" size={24} />
             </div>
-            <span className="text-2xl font-black tracking-tighter text-white">Work<span className="text-brand-primary">Sensy</span></span>
+            <span className="text-2xl font-bold tracking-tighter text-white">Work<span className="text-brand-primary">Sensy</span></span>
           </div>
 
           <div className="max-w-md mt-12 pr-4">
@@ -50,7 +50,7 @@ const Login = () => {
                 <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-pulse"></div>
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Next-Gen Management</span>
              </div>
-            <h1 className="text-6xl font-black leading-[1.05] mb-8 tracking-tighter">
+            <h1 className="text-6xl font-bold leading-[1.05] mb-8 tracking-tighter">
               Precision <br />
               <span className="premium-gradient-text">Operations.</span>
             </h1>
@@ -81,8 +81,8 @@ const Login = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none opacity-20"></div>
 
             <div className="text-center mb-10 relative z-10">
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Systems Authorization</h2>
-              <p className="text-slate-500 text-[11px] font-black uppercase tracking-[0.3em] opacity-60">Verified Access Gateway</p>
+              <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Systems Authorization</h2>
+              <p className="text-slate-500 text-[11px] font-bold uppercase tracking-[0.3em] opacity-60">Verified Access Gateway</p>
             </div>
 
             {error && (
@@ -94,7 +94,7 @@ const Login = () => {
 
             <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
               <div className="space-y-2">
-                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ml-1">
                   Identity Mail
                 </label>
                 <div className="relative group">
@@ -111,10 +111,10 @@ const Login = () => {
 
               <div className="relative space-y-2">
                 <div className="flex justify-between items-center px-1">
-                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
                     Access Key
                   </label>
-                  <a href="#" className="text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-hover hover:underline transition-all">
+                  <a href="#" className="text-[10px] font-bold uppercase tracking-widest text-brand-primary hover:text-brand-hover hover:underline transition-all">
                     Forgot Key?
                   </a>
                 </div>
@@ -151,7 +151,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full py-5 px-8 bg-gradient-to-r from-brand-primary to-indigo-600 text-white font-black uppercase tracking-[0.25em] text-xs rounded-2xl transition-all duration-500 relative overflow-hidden group shadow-[0_10px_30px_rgba(99,102,241,0.3)] hover:shadow-[0_15px_40px_rgba(99,102,241,0.4)] active:scale-[0.97] ${
+                className={`w-full py-5 px-8 bg-gradient-to-r from-brand-primary to-indigo-600 text-white font-bold uppercase tracking-[0.25em] text-xs rounded-2xl transition-all duration-500 relative overflow-hidden group shadow-[0_10px_30px_rgba(99,102,241,0.3)] hover:shadow-[0_15px_40px_rgba(99,102,241,0.4)] active:scale-[0.97] ${
                   loading ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >

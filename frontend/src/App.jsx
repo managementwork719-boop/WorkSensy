@@ -74,7 +74,7 @@ function App() {
                            <FileText size={40} className="text-brand-primary" />
                         </div>
                         <div className="space-y-2">
-                          <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Accounts Portal</h1>
+                          <h1 className="text-3xl font-bold text-slate-900 tracking-tight uppercase">Accounts Portal</h1>
                           <p className="text-slate-500 text-sm font-medium leading-relaxed">
                             Your account is restricted to financial operations. Please use the sidebar to manage 
                             <span className="text-brand-primary font-bold"> Invoices</span> and 

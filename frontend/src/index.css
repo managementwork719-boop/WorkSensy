@@ -25,11 +25,12 @@
 
 @layer base {
   body {
-    @apply text-slate-800 antialiased selection:bg-indigo-500 selection:text-white;
-    background-color: #ffffff;
+    @apply text-slate-700 antialiased selection:bg-indigo-500 selection:text-white;
+    background-color: #fcfcfd;
     font-family: var(--font-inter);
-    font-weight: 450;
-    letter-spacing: -0.01em;
+    font-weight: 400;
+    letter-spacing: -0.011em;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "cv02", "cv05", "cv08", "cv11", "ss01";
@@ -37,8 +38,8 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-jakarta);
-    letter-spacing: -0.02em;
-    @apply font-semibold;
+    letter-spacing: -0.03em;
+    @apply font-semibold text-slate-900;
   }
 }
 
