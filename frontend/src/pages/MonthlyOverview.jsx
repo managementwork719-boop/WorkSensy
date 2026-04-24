@@ -82,13 +82,13 @@ const isOverdue = (dateString) => {
 };
 
 const OverviewCard = ({ title, value, icon: Icon, color = 'bg-brand-primary' }) => (
-  <div className={`${color} p-4 rounded-xl text-white shadow-sm flex items-center justify-between`}>
+  <div className={`${color} p-4 rounded-xl text-white shadow-sm flex items-center justify-between transition-all hover:scale-[1.02] hover:shadow-lg`}>
     <div className="space-y-0.5">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-white/70">{title}</p>
-      <h3 className="text-lg font-bold">{value}</h3>
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/80">{title}</p>
+      <h3 className="text-xl font-bold text-white tracking-tight leading-tight">{value}</h3>
     </div>
-    <div className="p-2 bg-white/20 rounded-lg">
-      <Icon size={16} />
+    <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-md border border-white/10">
+      <Icon size={18} className="text-white" />
     </div>
   </div>
 );
